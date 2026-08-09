@@ -984,7 +984,7 @@ main{
 }
 
 .buy-col-main .plans{
-  grid-template-columns:repeat(2, 1fr);
+  grid-template-columns:repeat(4, 1fr);
   padding:0;
   margin:0;
   max-width:none;
@@ -1014,8 +1014,7 @@ main{
   background:linear-gradient(180deg, var(--surface), var(--bg-soft));
   border:1px solid var(--border);
   border-radius:var(--radius-m);
-  padding:26px 20px 22px;
-  min-height:400px;
+  padding:18px 16px 16px;
   overflow:hidden;
   transition: transform .4s var(--ease), border-color .3s var(--ease), box-shadow .4s var(--ease);
 }
@@ -1032,30 +1031,30 @@ main{
 }
 
 .plan-art{
-  height:120px;
+  height:70px;
   border-radius:var(--radius-s);
   background:
     radial-gradient(circle at 30% 20%, rgba(var(--accent-rgb),.5), transparent 60%),
     linear-gradient(150deg, var(--surface-2), #0c0c10);
   border:1px solid var(--border);
   display:flex; align-items:center; justify-content:center;
-  margin-bottom:22px;
+  margin-bottom:14px;
   position:relative;
 }
 
-.plan-art svg{ width:38px; height:38px; color:var(--accent-2); }
+.plan-art svg{ width:26px; height:26px; color:var(--accent-2); }
 
 .plan-name{
   font-family:var(--f-display);
-  font-size:17px;
+  font-size:15px;
   font-weight:600;
-  margin-bottom:6px;
+  margin-bottom:4px;
 }
 
 .plan-desc{
-  font-size:12.5px;
+  font-size:12px;
   color:var(--text-faint);
-  margin-bottom:20px;
+  margin-bottom:14px;
   flex-grow:1;
 }
 
@@ -1063,12 +1062,12 @@ main{
   display:flex;
   align-items:baseline;
   gap:5px;
-  margin-bottom:18px;
+  margin-bottom:12px;
   font-family:var(--f-display);
 }
 
-.plan-price .amount{ font-size:30px; font-weight:700; }
-.plan-price .cur{ font-size:14px; color:var(--text-dim); }
+.plan-price .amount{ font-size:24px; font-weight:700; }
+.plan-price .cur{ font-size:13px; color:var(--text-dim); }
 
 /* ==========================================================================
    Dashboard — personal cabinet

@@ -96,7 +96,8 @@ const I18N = {
     'theme.title': 'Тема оформления',
     'buy.otherTitle': 'Прочие предметы',
     'dash.field.subscription': 'Состояние подписки',
-    'dash.value.noSubscription': 'Нет активной подписки',
+    'dash.value.noSubscription': 'Нету',
+    'dash.value.activeUntil': 'Активна до:',
   },
   EN: {
     'nav.support': 'Support',
@@ -190,7 +191,8 @@ const I18N = {
     'theme.title': 'Theme',
     'buy.otherTitle': 'Other items',
     'dash.field.subscription': 'Subscription status',
-    'dash.value.noSubscription': 'No active subscription',
+    'dash.value.noSubscription': 'None',
+    'dash.value.activeUntil': 'Active until:',
   },
   KZ: {
     'nav.support': 'Қолдау',
@@ -283,7 +285,8 @@ const I18N = {
     'theme.title': 'Безендіру тақырыбы',
     'buy.otherTitle': 'Басқа заттар',
     'dash.field.subscription': 'Жазылым күйі',
-    'dash.value.noSubscription': 'Белсенді жазылым жоқ',
+    'dash.value.noSubscription': 'Жоқ',
+    'dash.value.activeUntil': 'Мынаған дейін белсенді:',
   }
 };
 

@@ -74,17 +74,17 @@ function icDashRender(){
   const hasClient = u.purchasesSummary !== 'Нет покупок';
 
   const subscriptionValue = (u.subscriptionActive && u.subscriptionUntilFull)
-    ? u.subscriptionUntilFull
+    ? `${icT('dash.value.activeUntil')} ${u.subscriptionUntilFull}`
     : icT('dash.value.noSubscription');
 
   grid.innerHTML = [
     icDashField('regdate', 'calendar', u.regdate || '—'),
     icDashField('lastlogin', 'clock', u.lastlogin || '—'),
-    icDashField('subscription', 'clock', subscriptionValue),
     icDashField('hwid', 'cpu', u.hwid || noneLabel,
       `<button type="button" class="btn btn-outline dash-item-action" id="dash-hwid-reset">${ICONS.lock}<span data-i18n="dash.row.hwidReset"></span></button>`, true),
     icDashField('purchases', 'cart', purchasesValue,
       `<button type="button" class="btn btn-outline dash-item-action" id="dash-purchases-details">${ICONS.info}<span data-i18n="dash.row.details"></span></button>`, true),
+    icDashField('subscription', 'clock', subscriptionValue, '', true),
     `<div class="dash-item reveal dash-item-wide has-panel" id="dash-telegram-item">
       <span class="dash-item-icon">${ICONS.telegram}</span>
       <span class="dash-item-body">
