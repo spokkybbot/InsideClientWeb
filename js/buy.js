@@ -35,6 +35,13 @@ const PLANS = [
     name: { RU: 'Сброс HWID', EN: 'HWID reset' },
     desc: { RU: 'Перепривязка к новому железу', EN: 'Re-link your license to new hardware' },
   },
+  {
+    id: 'bot',
+    icon: 'chat',
+    price: 50,
+    name: { RU: 'Доступ к Боту', EN: 'Bot access' },
+    desc: { RU: 'Открывает функции Telegram-бота', EN: 'Unlocks the Telegram bot features' },
+  },
 ];
 
 function icRenderPlans(){

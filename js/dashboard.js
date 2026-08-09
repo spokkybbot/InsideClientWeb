@@ -6,9 +6,46 @@ let icDashRendering = false;
 let icTelegramPending = null; // { code, deepLink, expiresAt }
 let icTelegramPollTimer = null;
 
-function icDashField(key, icon, value, extraHtml){
+function icDashInitials(login){
+  return (login || '?').trim().charAt(0).toUpperCase();
+}
+
+function icDashGroupClass(group){
+  if(group === 'Админ') return 'badge-admin';
+  if(group === 'Пользователь') return 'badge-user';
+  return 'badge-none';
+}
+
+function icDashRenderProfile(u){
+  const box = document.getElementById('dash-profile');
+  if(!box) return;
+
+  const noneLabel = icT('dash.value.none');
+  const groupLabel = u.group === 'Нету' ? noneLabel : u.group;
+
+  const badges = [
+    `<span class="dash-badge ${icDashGroupClass(u.group)}">${groupLabel}</span>`,
+  ];
+  if(u.subscriptionActive && u.subscriptionUntil){
+    badges.push(`<span class="dash-badge badge-sub">${ICONS.clock}<span>до ${u.subscriptionUntil}</span></span>`);
+  }
+  if(u.banned){
+    badges.push(`<span class="dash-badge badge-banned">Заблокирован</span>`);
+  }
+
+  box.innerHTML = `
+    <div class="dash-profile-avatar">${icDashInitials(u.login)}</div>
+    <div class="dash-profile-info">
+      <span class="dash-profile-login">${u.login}</span>
+      <span class="dash-profile-uid">UID ${u.uid}</span>
+      <div class="dash-profile-badges">${badges.join('')}</div>
+    </div>
+  `;
+}
+
+function icDashField(key, icon, value, extraHtml, wide){
   return `
-    <div class="dash-item reveal">
+    <div class="dash-item reveal${wide ? ' dash-item-wide' : ''}">
       <span class="dash-item-icon">${ICONS[icon]}</span>
       <span class="dash-item-body">
         <span class="dash-item-label" data-i18n="dash.field.${key}"></span>
@@ -26,25 +63,24 @@ function icDashRender(){
   icDashRendering = true;
   const u = icDashUser;
 
+  icDashRenderProfile(u);
+
   const noneLabel = icT('dash.value.none');
   const notLinkedLabel = icT('dash.value.notLinked');
   const linkedLabel = icT('dash.value.linked');
 
   const purchasesValue = u.purchasesSummary === 'Нет покупок' ? icT('dash.value.noPurchases') : u.purchasesSummary;
-
   const telegramValue = u.telegramLinked ? (u.telegram ? '@' + u.telegram : linkedLabel) : notLinkedLabel;
+  const hasClient = u.purchasesSummary !== 'Нет покупок';
 
   grid.innerHTML = [
-    icDashField('uid', 'uid', u.uid),
-    icDashField('login', 'user', u.login),
-    icDashField('group', 'group', u.group === 'Нету' ? noneLabel : u.group),
     icDashField('regdate', 'calendar', u.regdate || '—'),
     icDashField('lastlogin', 'clock', u.lastlogin || '—'),
     icDashField('hwid', 'cpu', u.hwid || noneLabel,
-      `<button type="button" class="btn btn-outline dash-item-action" id="dash-hwid-reset">${ICONS.lock}<span data-i18n="dash.row.hwidReset"></span></button>`),
+      `<button type="button" class="btn btn-outline dash-item-action" id="dash-hwid-reset">${ICONS.lock}<span data-i18n="dash.row.hwidReset"></span></button>`, true),
     icDashField('purchases', 'cart', purchasesValue,
-      `<button type="button" class="btn btn-outline dash-item-action" id="dash-purchases-details">${ICONS.info}<span data-i18n="dash.row.details"></span></button>`),
-    `<div class="dash-item reveal has-panel" id="dash-telegram-item">
+      `<button type="button" class="btn btn-outline dash-item-action" id="dash-purchases-details">${ICONS.info}<span data-i18n="dash.row.details"></span></button>`, true),
+    `<div class="dash-item reveal dash-item-wide has-panel" id="dash-telegram-item">
       <span class="dash-item-icon">${ICONS.telegram}</span>
       <span class="dash-item-body">
         <span class="dash-item-label" data-i18n="dash.field.telegram"></span>
@@ -60,19 +96,15 @@ function icDashRender(){
         <p class="dash-telegram-status" id="dash-telegram-status"></p>
       </div>
     </div>`,
-    `<div class="dash-item reveal">
-      <span class="dash-item-icon">${ICONS.key}</span>
-      <span class="dash-item-body">
-        <span class="dash-item-label" data-i18n="dash.field.keyactivate"></span>
-        <input type="text" class="dash-item-input" id="dash-key-input" data-i18n-placeholder="dash.row.keyPlaceholder" placeholder="${icT('dash.row.keyPlaceholder')}" autocomplete="off">
-      </span>
-      <button type="button" class="btn btn-primary dash-item-action" id="dash-key-activate">${ICONS.key}<span data-i18n="dash.row.activate"></span></button>
-    </div>`,
+    icDashField('keyactivate', 'key',
+      `<input type="text" class="dash-item-input" id="dash-key-input" data-i18n-placeholder="dash.row.keyPlaceholder" placeholder="${icT('dash.row.keyPlaceholder')}" autocomplete="off">`,
+      `<button type="button" class="btn btn-primary dash-item-action" id="dash-key-activate">${ICONS.key}<span data-i18n="dash.row.activate"></span></button>`,
+      true),
   ].join('');
 
   actions.innerHTML = `
     <button type="button" class="btn btn-outline" id="dash-purchases">${ICONS.cart}<span data-i18n="dash.action.purchases"></span></button>
-    <button type="button" class="btn btn-white" id="dash-download">${ICONS.download}<span data-i18n="dash.action.download"></span></button>
+    ${hasClient ? `<button type="button" class="btn btn-white" id="dash-download">${ICONS.download}<span data-i18n="dash.action.download"></span></button>` : ''}
     <button type="button" class="btn btn-outline" id="dash-password">${ICONS.lock}<span data-i18n="dash.action.password"></span></button>
     <button type="button" class="btn btn-ghost" id="dash-logout">${ICONS.logout}<span data-i18n="dash.action.logout"></span></button>
   `;

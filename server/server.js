@@ -406,6 +406,7 @@ const PLAN_PRODUCT = {
   month3: 'Клиент 1.16.5',
   year: 'Клиент 1.16.5',
   forever: 'Клиент 1.16.5',
+  bot: 'Доступ к боту',
 };
 
 async function handleBuy(req, res) {
@@ -458,11 +459,12 @@ async function handleKeyActivate(req, res) {
     return fail(res, 400, 'Некорректный запрос.');
   }
 
-  const key = String(body.key || '').trim().toUpperCase();
-  if (!key) return fail(res, 400, 'Введите ключ.');
+  const inputKey = String(body.key || '').trim();
+  if (!inputKey) return fail(res, 400, 'Введите ключ.');
 
-  const row = db.prepare('SELECT * FROM activation_keys WHERE activation_key = ?').get(key);
+  const row = db.prepare('SELECT * FROM activation_keys WHERE activation_key = ? COLLATE NOCASE').get(inputKey);
   if (!row) return fail(res, 404, 'Ключ не найден.');
+  const key = row.activation_key; // canonical casing as stored
 
   const maxUses = row.max_uses || 1;
   const usesCount = row.uses_count || row.used || 0;
@@ -623,13 +625,12 @@ async function handleAdminRevokeSubscription(req, res) {
   sendJson(res, 200, { user: userToDto(fresh) });
 }
 
-// Key format: SEGA-HHHH-UUUU-DDDD
-//   SEGA = random 4-character segment
-//   HHHH = hours the key itself stays redeemable for (0000 = no expiry)
-//   UUUU = how many times the key can be redeemed
-//   DDDD = subscription length in days it grants (0000 for an HWID-reset key,
-//          since that reward has no duration of its own)
-const KEY_SEGMENT_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+// Key format: xxxx-xxxx-xxxx-xxxx — four fully random lowercase a-z0-9
+// segments. Hours-valid / max-uses / reward / subscription-days are *not*
+// encoded into the visible key anymore — they're just stored on the
+// activation_keys row (see handleAdminCreateKey below) and looked up by the
+// key string at redemption time.
+const KEY_SEGMENT_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
 function randomKeySegment(len) {
   const bytes = crypto.randomBytes(len);
   let out = '';
@@ -637,12 +638,8 @@ function randomKeySegment(len) {
   return out;
 }
 
-function generateActivationKey({ hoursValid, maxUses, rewardType, subscriptionDays }) {
-  const seg1 = randomKeySegment(4);
-  const seg2 = String(Math.max(0, hoursValid)).padStart(4, '0').slice(-4);
-  const seg3 = String(Math.max(1, maxUses)).padStart(4, '0').slice(-4);
-  const seg4 = rewardType === 'hwid_reset' ? '0000' : String(Math.max(0, subscriptionDays || 0)).padStart(4, '0').slice(-4);
-  return `${seg1}-${seg2}-${seg3}-${seg4}`;
+function generateActivationKey() {
+  return [randomKeySegment(4), randomKeySegment(4), randomKeySegment(4), randomKeySegment(4)].join('-');
 }
 
 async function handleAdminCreateKey(req, res) {
@@ -672,8 +669,8 @@ async function handleAdminCreateKey(req, res) {
 
   let activationKey = null;
   for (let attempt = 0; attempt < 5 && !activationKey; attempt++) {
-    const candidate = generateActivationKey({ hoursValid, maxUses, rewardType, subscriptionDays });
-    const exists = db.prepare('SELECT 1 FROM activation_keys WHERE activation_key = ?').get(candidate);
+    const candidate = generateActivationKey();
+    const exists = db.prepare('SELECT 1 FROM activation_keys WHERE activation_key = ? COLLATE NOCASE').get(candidate);
     if (!exists) activationKey = candidate;
   }
   if (!activationKey) return fail(res, 500, 'Не удалось сгенерировать уникальный ключ, попробуйте ещё раз.');

@@ -4,12 +4,17 @@
 // клавиатуре) — если поменяешь TELEGRAM_BOT_USERNAME на сервере, поменяй
 // имя бота и здесь.
 const IC_TELEGRAM_URL = 'https://t.me/InsideClientBot';
+const IC_DISCORD_URL = 'https://discord.gg/tUJMPKPHxc';
 
 function icRenderHeader(active){
   const langs = ['RU', 'EN', 'KZ'];
 
   const langHtml = langs.map((l, i) => (
     `<button type="button" data-lang="${l}">${l}</button>${i < langs.length - 1 ? '<span class="sep">|</span>' : ''}`
+  )).join('');
+
+  const themeSwatchesHtml = IC_THEMES.map(t => (
+    `<button type="button" class="theme-swatch" data-theme="${t.id}"><span class="swatch-dot swatch-${t.id}"></span>${t.label}</button>`
   )).join('');
 
   return `
@@ -25,6 +30,10 @@ function icRenderHeader(active){
       <a href="${IC_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn btn-ghost" id="support-link"><span class="btn-icon">${ICONS.chat}</span><span class="btn-label" data-i18n="nav.support">Поддержка</span></a>
       <a href="buy.html" class="btn ${active === 'buy' ? 'btn-primary' : 'btn-outline'}"><span class="btn-icon">${ICONS.cart}</span><span class="btn-label" data-i18n="nav.buy">Купить</span></a>
       <a href="login.html" class="btn ${active === 'login' ? 'btn-primary' : 'btn-white'}"><span class="btn-icon">${ICONS.user}</span><span class="btn-label" data-i18n="nav.login">Авторизация</span></a>
+      <div class="theme-switch" id="theme-switch">
+        <button type="button" class="theme-switch-btn" id="theme-switch-btn" aria-label="Тема оформления">${ICONS.brush}</button>
+        <div class="theme-switch-menu hidden" id="theme-switch-menu">${themeSwatchesHtml}</div>
+      </div>
     </div>
   </div>`;
 }
@@ -36,7 +45,7 @@ function icRenderFooter(){
     <span>© ${year} Inside Client. <span data-i18n="footer.rights">Все права защищены.</span></span>
     <div class="footer-socials">
       <a href="${IC_TELEGRAM_URL}" target="_blank" rel="noopener" class="social-btn" id="footer-telegram" aria-label="Telegram">${ICONS.telegram}</a>
-      <a href="#" class="social-btn" id="footer-discord" aria-label="Discord">${ICONS.discord}</a>
+      <a href="${IC_DISCORD_URL}" target="_blank" rel="noopener" class="social-btn" id="footer-discord" aria-label="Discord">${ICONS.discord}</a>
       <a href="#" class="social-btn" id="footer-youtube" aria-label="YouTube">${ICONS.youtube}</a>
     </div>
   </div>`;
@@ -52,14 +61,11 @@ function icMountShell(active){
     btn.addEventListener('click', () => icSetLang(btn.dataset.lang));
   });
 
-  document.getElementById('footer-discord')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    icToast(icT('toast.discord'));
-  });
   document.getElementById('footer-youtube')?.addEventListener('click', (e) => {
     e.preventDefault();
     icToast(icT('toast.youtube'));
   });
 
+  icInitThemeSwitch();
   icApplyLang();
 }

@@ -33,4 +33,5 @@ const ICONS = {
   youtube: `<svg viewBox="0 0 20 20" fill="none"><rect x="2" y="4.5" width="16" height="11" rx="3" stroke="currentColor" stroke-width="1.4"/><path d="M8.3 7.8v4.4l4-2.2-4-2.2Z" fill="currentColor"/></svg>`,
   info: `<svg viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7.2" stroke="currentColor" stroke-width="1.5"/><path d="M10 9v5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="10" cy="6.3" r="1" fill="currentColor"/></svg>`,
   link: `<svg viewBox="0 0 20 20" fill="none"><path d="M8.3 11.7 11.7 8.3M7 13.5 5 15.5a2.83 2.83 0 0 1-4-4l2-2M13 6.5l2-2a2.83 2.83 0 0 1 4 4l-2 2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  brush: `<svg viewBox="0 0 20 20" fill="none"><path d="M14.8 2.8a1.8 1.8 0 0 1 2.5 2.5L9.8 12.8l-3.3.8.8-3.3 7.5-7.5Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M6.3 12.5c-.2 1.6-1 2.6-3 2.9 1 .5 1 2 2.6 2 1.8 0 2.9-1.4 2.9-3.1" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };

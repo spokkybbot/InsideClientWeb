@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inside Client — премиальный клиент</title>
 <meta name="description" content="Inside Client — премиальный игровой клиент. Комфорт, доминирование, стиль.">
+<script>(function(){try{var t=localStorage.getItem('ic_theme');var v=['mono','purple','emerald','crimson'];document.documentElement.setAttribute('data-theme', v.indexOf(t)!==-1?t:'mono');}catch(e){}})();</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-page="home">
@@ -23,7 +24,7 @@
             <span id="ic-cart"></span>
             <span data-i18n="hero.buy">Купить</span>
           </a>
-          <a href="#" class="btn btn-outline" data-stub="discord">
+          <a href="https://discord.gg/tUJMPKPHxc" target="_blank" rel="noopener" class="btn btn-outline">
             <span id="ic-arrow"></span>
             <span data-i18n="hero.more">Подробнее</span>
           </a>
@@ -48,6 +49,7 @@
   <div id="toast" role="status" aria-live="polite"></div>
 
   <script src="js/icons.js"></script>
+  <script src="js/theme.js"></script>
   <script src="js/i18n.js"></script>
   <script src="js/components.js"></script>
   <script src="js/cursor.js"></script>

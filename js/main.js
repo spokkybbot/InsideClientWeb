@@ -28,17 +28,7 @@ function icInitReveal(){
   }, 2500);
 }
 
-function icInitStubLinks(){
-  document.querySelectorAll('[data-stub="discord"]').forEach(el => {
-    el.addEventListener('click', (e) => {
-      e.preventDefault();
-      icToast(icT('toast.discord'));
-    });
-  });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   icMountShell(document.body.dataset.page);
   icInitReveal();
-  icInitStubLinks();
 });
