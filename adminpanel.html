@@ -21,9 +21,14 @@
 
       <section class="admin-section reveal">
         <h2 class="admin-section-title">Чекер аккаунтов</h2>
-        <p class="admin-section-hint">Поиск по UID, логину или Telegram-username (с @ или без).</p>
+        <p class="admin-section-hint">Выберите тип и введите значение для поиска.</p>
         <div class="admin-search-row">
-          <input type="text" id="admin-search-input" class="dash-item-input admin-search-input" placeholder="UID / логин / @telegram" autocomplete="off">
+          <select id="admin-search-type" class="dash-item-input admin-search-type">
+            <option value="uid">UID</option>
+            <option value="username">Username</option>
+            <option value="telegram">Telegram username</option>
+          </select>
+          <input type="text" id="admin-search-input" class="dash-item-input admin-search-input" placeholder="Значение для поиска" autocomplete="off">
           <button type="button" class="btn btn-primary" id="admin-search-btn">Найти</button>
         </div>
         <div id="admin-search-result"></div>

@@ -470,9 +470,7 @@ async function handleBuy(req, res) {
   const user = requireAuth(req, res);
   if (!user) return;
 
-  if (!user.telegram_chat_id) {
-    return fail(res, 403, 'Перед покупкой привяжите Telegram.');
-  }
+  // Привязка Telegram больше не обязательна для покупки.
 
   let body;
   try {
@@ -485,8 +483,8 @@ async function handleBuy(req, res) {
 
   if (PLAN_LINKS[plan]) {
     // Реальной оплаты пока нет — вместо мгновенной "фейковой" покупки
-    // отправляем на конкретный лот FunPay. Telegram уже гарантированно
-    // привязан (проверка выше), это условие площадки.
+    // отправляем на конкретный лот FunPay. Привязка Telegram для покупки
+    // больше не требуется.
     return sendJson(res, 200, { redirect: PLAN_LINKS[plan] });
   }
 
@@ -580,10 +578,27 @@ async function handleKeyActivate(req, res) {
 /* Admin — rank, account checker, key creation                            */
 /* ---------------------------------------------------------------------- */
 
-function findUserByQuery(raw) {
+function findUserByQuery(raw, type) {
   const q = String(raw || '').trim();
   if (!q) return null;
 
+  if (type === 'uid') {
+    if (!/^\d+$/.test(q)) return null;
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(Number(q)) || null;
+  }
+
+  if (type === 'telegram') {
+    const tgHandle = q.replace(/^@/, '');
+    return (
+      db.prepare('SELECT * FROM users WHERE telegram_username = ? COLLATE NOCASE').get(tgHandle) || null
+    );
+  }
+
+  if (type === 'username') {
+    return db.prepare('SELECT * FROM users WHERE login = ? COLLATE NOCASE').get(q) || null;
+  }
+
+  // Тип не указан (или неизвестен) — старое поведение: пробуем по очереди.
   if (/^\d+$/.test(q)) {
     const byId = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(q));
     if (byId) return byId;
@@ -606,7 +621,8 @@ function handleAdminUserLookup(req, res, url) {
   if (!admin) return;
 
   const query = url.searchParams.get('query');
-  const user = findUserByQuery(query);
+  const type = url.searchParams.get('type');
+  const user = findUserByQuery(query, type);
   if (!user) return fail(res, 404, 'Пользователь не найден.');
 
   const keyUses = db
@@ -676,21 +692,52 @@ async function handleAdminRevokeSubscription(req, res) {
   sendJson(res, 200, { user: userToDto(fresh) });
 }
 
-// Key format: xxxx-xxxx-xxxx-xxxx — four fully random lowercase a-z0-9
-// segments. Hours-valid / max-uses / reward / subscription-days are *not*
+// Key format: XXXX-XXXX-XXXX-XXXX — four random segments, uppercase letters
+// A-Z and digits 0-9, каждый блок из 4 символов содержит минимум 2 цифры.
+// Hours-valid / max-uses / reward / subscription-days are *not*
 // encoded into the visible key anymore — they're just stored on the
 // activation_keys row (see handleAdminCreateKey below) and looked up by the
 // key string at redemption time.
-const KEY_SEGMENT_ALPHABET = 'abcdefghijklmnopqrstuvwxyz0123456789';
-function randomKeySegment(len) {
+const KEY_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+const KEY_DIGITS = '0123456789';
+const KEY_SEGMENT_LEN = 4;
+const KEY_MIN_DIGITS_PER_SEGMENT = 2;
+
+function randomFromAlphabet(alphabet, len) {
   const bytes = crypto.randomBytes(len);
   let out = '';
-  for (let i = 0; i < len; i++) out += KEY_SEGMENT_ALPHABET[bytes[i] % KEY_SEGMENT_ALPHABET.length];
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
   return out;
 }
 
+function shuffleChars(str) {
+  const arr = str.split('');
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = crypto.randomBytes(1)[0] % (i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr.join('');
+}
+
+function randomKeySegment(len, minDigits) {
+  // Случайное число цифр в блоке — не меньше minDigits, но и не все подряд
+  // одинаковые, чтобы блок выглядел естественно.
+  const extraRange = len - minDigits + 1;
+  const digitsCount = minDigits + (crypto.randomBytes(1)[0] % extraRange);
+  const lettersCount = len - digitsCount;
+
+  const digits = randomFromAlphabet(KEY_DIGITS, digitsCount);
+  const letters = randomFromAlphabet(KEY_LETTERS, lettersCount);
+  return shuffleChars(digits + letters);
+}
+
 function generateActivationKey() {
-  return [randomKeySegment(4), randomKeySegment(4), randomKeySegment(4), randomKeySegment(4)].join('-');
+  return [
+    randomKeySegment(KEY_SEGMENT_LEN, KEY_MIN_DIGITS_PER_SEGMENT),
+    randomKeySegment(KEY_SEGMENT_LEN, KEY_MIN_DIGITS_PER_SEGMENT),
+    randomKeySegment(KEY_SEGMENT_LEN, KEY_MIN_DIGITS_PER_SEGMENT),
+    randomKeySegment(KEY_SEGMENT_LEN, KEY_MIN_DIGITS_PER_SEGMENT),
+  ].join('-');
 }
 
 async function handleAdminCreateKey(req, res) {

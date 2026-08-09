@@ -91,12 +91,6 @@ function icRenderPlans(){
         setTimeout(() => { window.location.href = 'login.html'; }, 700);
         return;
       }
-      if(!window.icCurrentUser.telegram){
-        icToast(icT('toast.telegramRequired'));
-        setTimeout(() => { window.location.href = 'dashboard.html'; }, 900);
-        return;
-      }
-
       const planId = btn.dataset.plan;
       btn.disabled = true;
       try {

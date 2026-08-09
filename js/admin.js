@@ -14,8 +14,19 @@ function icAdminRenderProfile(p){
     ? p.keysActivated.map(k => `<li>${k.key} — ${k.product} <span class="admin-muted">(${k.activatedAt})</span></li>`).join('')
     : '<li class="admin-muted">Нет активированных ключей</li>';
 
+  const avatarHtml = p.avatar
+    ? `<img src="${p.avatar}" alt="" class="admin-profile-avatar">`
+    : `<div class="admin-profile-avatar admin-profile-avatar-placeholder">${ICONS.user || ''}</div>`;
+
   box.innerHTML = `
     <div class="admin-profile-card">
+      <div class="admin-profile-head">
+        ${avatarHtml}
+        <div>
+          <div class="admin-profile-head-login">${p.login}</div>
+          <div class="admin-profile-head-uid">UID ${p.uid}</div>
+        </div>
+      </div>
       <div class="admin-profile-grid">
         <div><span class="admin-profile-key">UID</span><span class="admin-profile-val">${p.uid}</span></div>
         <div><span class="admin-profile-key">Логин</span><span class="admin-profile-val">${p.login}</span></div>
@@ -44,7 +55,7 @@ function icAdminRenderProfile(p){
     try {
       await icApiPost('/api/admin/ban', { uid, banned: !currentlyBanned });
       icToast(currentlyBanned ? 'Пользователь разбанен.' : 'Пользователь забанен.');
-      icAdminSearch(String(uid));
+      icAdminSearch(String(uid), 'uid');
     } catch (err) { icToast(err.message); }
   });
 
@@ -53,16 +64,23 @@ function icAdminRenderProfile(p){
     try {
       await icApiPost('/api/admin/subscription/revoke', { uid });
       icToast('Подписка снята.');
-      icAdminSearch(String(uid));
+      icAdminSearch(String(uid), 'uid');
     } catch (err) { icToast(err.message); }
   });
 }
 
-async function icAdminSearch(query){
+function icAdminSearchTypeLabel(type){
+  if(type === 'uid') return 'UID';
+  if(type === 'username') return 'логин';
+  if(type === 'telegram') return 'Telegram username';
+  return 'значение';
+}
+
+async function icAdminSearch(query, type){
   const box = document.getElementById('admin-search-result');
-  if(!query){ icToast('Введите UID, логин или Telegram.'); return; }
+  if(!query){ icToast(`Введите ${icAdminSearchTypeLabel(type)}.`); return; }
   try {
-    const data = await icApiGet(`/api/admin/user?query=${encodeURIComponent(query)}`);
+    const data = await icApiGet(`/api/admin/user?query=${encodeURIComponent(query)}&type=${encodeURIComponent(type || '')}`);
     icAdminRenderProfile(data.profile);
   } catch (err) {
     if(box) box.innerHTML = '';
@@ -73,9 +91,28 @@ async function icAdminSearch(query){
 document.addEventListener('ic:session-ready', (e) => {
   if(!e.detail.user || !e.detail.user.isAdmin) return; // session.js already redirects
 
+  const searchTypeSelect = document.getElementById('admin-search-type');
+  const searchInput = document.getElementById('admin-search-input');
+
+  function syncSearchPlaceholder(){
+    if(!searchTypeSelect || !searchInput) return;
+    const type = searchTypeSelect.value;
+    if(type === 'uid'){
+      searchInput.placeholder = 'Например, 1024';
+      searchInput.type = 'number';
+    } else if(type === 'telegram'){
+      searchInput.placeholder = 'username (с @ или без)';
+      searchInput.type = 'text';
+    } else {
+      searchInput.placeholder = 'Логин пользователя';
+      searchInput.type = 'text';
+    }
+  }
+  searchTypeSelect?.addEventListener('change', syncSearchPlaceholder);
+  syncSearchPlaceholder();
+
   document.getElementById('admin-search-btn')?.addEventListener('click', () => {
-    const input = document.getElementById('admin-search-input');
-    icAdminSearch(input ? input.value.trim() : '');
+    icAdminSearch(searchInput ? searchInput.value.trim() : '', searchTypeSelect ? searchTypeSelect.value : 'uid');
   });
   document.getElementById('admin-search-input')?.addEventListener('keydown', (ev) => {
     if(ev.key === 'Enter'){ ev.preventDefault(); document.getElementById('admin-search-btn')?.click(); }
