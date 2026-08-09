@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Купить клиент — Inside Client</title>
-<script>(function(){try{var t=localStorage.getItem('ic_theme');var v=['mono','purple','emerald','crimson'];document.documentElement.setAttribute('data-theme', v.indexOf(t)!==-1?t:'mono');}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem('ic_theme')||'mono';document.documentElement.setAttribute('data-theme', t);}catch(e){}})();</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-page="buy">
@@ -19,7 +19,17 @@
       <p data-i18n="buy.text">Выбери срок — активация происходит сразу после оплаты.</p>
     </div>
 
-    <div class="plans" id="plans-grid"></div>
+    <div class="buy-layout">
+      <section class="buy-col buy-col-main">
+        <h2 class="buy-col-title" data-i18n="buy.title">Купить клиент</h2>
+        <div class="plans" id="plans-grid-client"></div>
+      </section>
+      <div class="buy-divider" aria-hidden="true"></div>
+      <section class="buy-col buy-col-side">
+        <h2 class="buy-col-title" data-i18n="buy.otherTitle">Прочие предметы</h2>
+        <div class="plans plans-side" id="plans-grid-other"></div>
+      </section>
+    </div>
   </main>
 
   <footer class="site-footer" id="app-footer"></footer>
