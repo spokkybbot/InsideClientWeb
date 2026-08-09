@@ -14,6 +14,11 @@ fs.mkdirSync(DATA_DIR, { recursive: true });
 
 const db = new DatabaseSync(DB_PATH);
 
+// Сайт и бот — два отдельных процесса, оба пишут в один файл SQLite.
+// Без busy_timeout второй процесс при конфликте сразу падает с
+// "database is locked" вместо того, чтобы недолго подождать снятия блокировки.
+db.exec('PRAGMA busy_timeout = 5000;');
+
 db.exec(`
   PRAGMA journal_mode = WAL;
 

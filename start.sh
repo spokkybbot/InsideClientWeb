@@ -12,6 +12,9 @@ SERVER_PID=$!
 
 BOT_PID=""
 if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
+  # Небольшая пауза, чтобы сайт первым успел создать/открыть таблицы в
+  # SQLite при холодном старте — избегаем гонки "database is locked".
+  sleep 3
   echo "TELEGRAM_BOT_TOKEN задан — запускаю бота..."
   node server/bot.js &
   BOT_PID=$!
