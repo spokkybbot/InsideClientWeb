@@ -419,6 +419,15 @@ const PLAN_PRODUCT = {
   bot: 'Доступ к боту',
 };
 
+// Каждый тариф ведёт на свой конкретный лот FunPay.
+const PLAN_LINKS = {
+  month1: 'https://funpay.com/lots/offer?id=74713087',
+  month3: 'https://funpay.com/lots/offer?id=74713134',
+  year: 'https://funpay.com/lots/offer?id=74713169',
+  forever: 'https://funpay.com/lots/offer?id=74713197',
+  hwid: 'https://funpay.com/lots/offer?id=74713229',
+};
+
 async function handleBuy(req, res) {
   const user = requireAuth(req, res);
   if (!user) return;
@@ -436,22 +445,16 @@ async function handleBuy(req, res) {
 
   const plan = String(body.plan || '');
 
-  if (plan === 'hwid') {
-    db.prepare('UPDATE users SET hwid = NULL WHERE id = ?').run(user.id);
-    db.prepare('INSERT INTO purchases (user_id, product, source, purchased_at) VALUES (?, ?, ?, ?)').run(
-      user.id,
-      'Сброс HWID',
-      'shop',
-      nowIso()
-    );
-    const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
-    return sendJson(res, 200, { user: userToDto(fresh) });
+  if (PLAN_LINKS[plan]) {
+    // Реальной оплаты пока нет — вместо мгновенной "фейковой" покупки
+    // отправляем на конкретный лот FunPay. Telegram уже гарантированно
+    // привязан (проверка выше), это условие площадки.
+    return sendJson(res, 200, { redirect: PLAN_LINKS[plan] });
   }
 
   if (PLAN_PRODUCT[plan]) {
-    // Реальной оплаты пока нет — вместо мгновенной "фейковой" покупки
-    // отправляем на FunPay. Telegram уже гарантированно привязан (проверка
-    // выше), это условие площадки.
+    // Для тарифов без выделенного лота (например «Доступ к боту») —
+    // отправляем на общий магазин FunPay.
     return sendJson(res, 200, { redirect: FUNPAY_URL });
   }
 

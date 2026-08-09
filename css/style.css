@@ -895,16 +895,16 @@ main{
   flex-shrink:0;
   border:1px solid rgba(255,255,255,.18);
 }
-.swatch-mono{    background:linear-gradient(135deg, #d6d6dc 50%, #08080a 50%); }
-.swatch-purple{  background:linear-gradient(135deg, #9b6bff 50%, #0a0713 50%); }
-.swatch-emerald{ background:linear-gradient(135deg, #33d17a 50%, #060b09 50%); }
-.swatch-crimson{ background:linear-gradient(135deg, #ff5c72 50%, #0d0607 50%); }
-.swatch-ocean{   background:linear-gradient(135deg, #4db5ff 50%, #04080f 50%); }
-.swatch-sunset{  background:linear-gradient(135deg, #ff8a3d 50%, #0f0805 50%); }
-.swatch-cyber{   background:linear-gradient(135deg, #ff3cdc 50%, #00f0ff 50%); }
-.swatch-gold{    background:linear-gradient(135deg, #e6b450 50%, #0a0904 50%); }
-.swatch-matrix{  background:linear-gradient(135deg, #3cff6e 50%, #030603 50%); }
-.swatch-rose{    background:linear-gradient(135deg, #ff6fa8 50%, #0c0609 50%); }
+.swatch-mono{    background:#d6d6dc; }
+.swatch-purple{  background:#9b6bff; }
+.swatch-emerald{ background:#33d17a; }
+.swatch-crimson{ background:#ff5c72; }
+.swatch-ocean{   background:#4db5ff; }
+.swatch-sunset{  background:#ff8a3d; }
+.swatch-cyber{   background:#ff3cdc; }
+.swatch-gold{    background:#e6b450; }
+.swatch-matrix{  background:#3cff6e; }
+.swatch-rose{    background:#ff6fa8; }
 
 @media (max-width:480px){
   .theme-switch-menu{ right:-12px; }
@@ -965,8 +965,8 @@ main{
 }
 
 .buy-col{ min-width:0; }
-.buy-col-main{ flex:2.2 1 0%; }
-.buy-col-side{ flex:1 1 0%; max-width:300px; }
+.buy-col-main{ flex:2 1 0%; }
+.buy-col-side{ flex:1 1 0%; max-width:none; }
 
 .buy-col-title{
   font-family:var(--f-display);
@@ -983,12 +983,17 @@ main{
   flex-shrink:0;
 }
 
+/* Карточки клиента: 2 в ряд x 2 в столбец (друг на друге), а не одной
+   строкой из четырёх — так карточка того же "квадратного" размера, что
+   и карточки в боковой колонке. */
 .buy-col-main .plans{
-  grid-template-columns:repeat(4, 1fr);
+  grid-template-columns:repeat(2, 1fr);
   padding:0;
   margin:0;
   max-width:none;
 }
+/* HWID и Бот — тоже друг на друге (один столбец), той же ширины, что и
+   карточки клиента слева (см. flex-пропорции .buy-col-main/.buy-col-side). */
 .buy-col-side .plans{
   grid-template-columns:1fr;
   padding:0;
@@ -1001,10 +1006,10 @@ main{
   .buy-col-main, .buy-col-side{ width:100%; max-width:none; }
   .buy-divider{ width:auto; height:1px; align-self:stretch; margin:40px 0; }
   .buy-col-main .plans{ grid-template-columns:repeat(2, 1fr); }
-  .buy-col-side .plans{ grid-template-columns:repeat(2, 1fr); }
+  .buy-col-side .plans{ grid-template-columns:1fr; }
 }
 @media (max-width:560px){
-  .buy-col-main .plans, .buy-col-side .plans{ grid-template-columns:1fr; }
+  .buy-col-main .plans{ grid-template-columns:1fr; }
 }
 
 .plan-card{
