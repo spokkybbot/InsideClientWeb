@@ -77,13 +77,14 @@ function clearSessionCookie(res) {
   );
 }
 
-function readJsonBody(req) {
+function readJsonBody(req, maxBytes) {
+  const limit = maxBytes || 1e6;
   return new Promise((resolve, reject) => {
     let data = '';
     let size = 0;
     req.on('data', (chunk) => {
       size += chunk.length;
-      if (size > 1e6) {
+      if (size > limit) {
         reject(new Error('Payload too large'));
         req.destroy();
         return;
@@ -211,6 +212,7 @@ function userToDto(user) {
     hwid: user.hwid || null,
     telegram: user.telegram_username || null,
     telegramLinked: Boolean(user.telegram_chat_id),
+    avatar: user.avatar || null,
     subscriptionActive: isSubscriptionActive(user),
     subscriptionUntil: user.subscription_until ? formatDate(user.subscription_until) : null,
     subscriptionUntilFull: user.subscription_until ? formatDateFull(user.subscription_until) : null,
@@ -409,6 +411,42 @@ async function handlePasswordChange(req, res) {
 
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashPassword(newPassword), user.id);
   sendJson(res, 200, { ok: true });
+}
+
+const AVATAR_MAX_BYTES = 900 * 1024; // источник уже уменьшен/сжат на клиенте до этого размера
+const AVATAR_DATA_URL_RE = /^data:image\/(png|jpeg|jpg|webp);base64,[A-Za-z0-9+/=]+$/;
+
+async function handleAvatarUpload(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  let body;
+  try {
+    body = await readJsonBody(req, AVATAR_MAX_BYTES + 2048);
+  } catch (e) {
+    return fail(res, 413, 'Файл слишком большой.');
+  }
+
+  const avatar = String(body.avatar || '');
+  if (!avatar || !AVATAR_DATA_URL_RE.test(avatar)) {
+    return fail(res, 400, 'Некорректное изображение.');
+  }
+  if (avatar.length > AVATAR_MAX_BYTES) {
+    return fail(res, 413, 'Файл слишком большой.');
+  }
+
+  db.prepare('UPDATE users SET avatar = ? WHERE id = ?').run(avatar, user.id);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  sendJson(res, 200, { user: userToDto(fresh) });
+}
+
+function handleAvatarDelete(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  db.prepare('UPDATE users SET avatar = NULL WHERE id = ?').run(user.id);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  sendJson(res, 200, { user: userToDto(fresh) });
 }
 
 const PLAN_PRODUCT = {
@@ -757,6 +795,8 @@ const API_ROUTES = {
   'POST /api/telegram/start-link': handleTelegramStartLink,
   'POST /api/telegram/unlink': handleTelegramUnlink,
   'POST /api/password/change': handlePasswordChange,
+  'POST /api/me/avatar': handleAvatarUpload,
+  'DELETE /api/me/avatar': handleAvatarDelete,
   'POST /api/purchases/buy': handleBuy,
   'POST /api/key/activate': handleKeyActivate,
   'GET /api/admin/user': handleAdminUserLookup,

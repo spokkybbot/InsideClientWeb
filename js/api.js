@@ -23,3 +23,4 @@ async function icApi(method, url, body) {
 
 const icApiGet = (url) => icApi('GET', url);
 const icApiPost = (url, body) => icApi('POST', url, body);
+const icApiDelete = (url, body) => icApi('DELETE', url, body);

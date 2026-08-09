@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Inside Client — премиальный клиент</title>
 <meta name="description" content="Inside Client — премиальный игровой клиент. Комфорт, доминирование, стиль.">
-<script>(function(){try{var t=localStorage.getItem('ic_theme')||'mono';document.documentElement.setAttribute('data-theme', t);}catch(e){}})();</script>
+<script>(function(){try{var t=localStorage.getItem('ic_theme')||'mono';document.documentElement.setAttribute('data-theme', t);if(t==='custom'){var raw=localStorage.getItem('ic_custom_palette');if(raw){var vars=JSON.parse(raw);for(var k in vars){document.documentElement.style.setProperty(k, vars[k]);}}}}catch(e){}})();</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body data-page="home">

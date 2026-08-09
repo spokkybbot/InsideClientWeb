@@ -33,14 +33,104 @@ function icDashRenderProfile(u){
     badges.push(`<span class="dash-badge badge-banned">Заблокирован</span>`);
   }
 
+  const avatarInner = u.avatar
+    ? `<img src="${u.avatar}" alt="" class="dash-profile-avatar-img">`
+    : icDashInitials(u.login);
+
   box.innerHTML = `
-    <div class="dash-profile-avatar">${icDashInitials(u.login)}</div>
+    <div class="dash-avatar-wrap">
+      <button type="button" class="dash-profile-avatar" id="dash-avatar-btn" title="${icT('dash.avatar.change')}">${avatarInner}<span class="dash-avatar-hint">${ICONS.camera}</span></button>
+      ${u.avatar ? `<button type="button" class="dash-avatar-remove" id="dash-avatar-remove" title="${icT('dash.avatar.remove')}">${ICONS.close}</button>` : ''}
+      <input type="file" accept="image/png,image/jpeg,image/webp" id="dash-avatar-input" class="dash-avatar-input" hidden>
+    </div>
     <div class="dash-profile-info">
       <span class="dash-profile-login">${u.login}</span>
       <span class="dash-profile-uid">UID ${u.uid}</span>
       <div class="dash-profile-badges">${badges.join('')}</div>
     </div>
   `;
+
+  icWireAvatarUpload();
+}
+
+const IC_AVATAR_SIZE = 256;
+const IC_AVATAR_MAX_BYTES = 850 * 1024;
+
+function icReadAvatarFile(file){
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error(icT('dash.avatar.errorRead')));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error(icT('dash.avatar.errorRead')));
+      img.onload = () => {
+        const size = IC_AVATAR_SIZE;
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        // Crop to a centered square, then scale down to a fixed size —
+        // keeps every stored avatar small and uniform.
+        const side = Math.min(img.width, img.height);
+        const sx = (img.width - side) / 2;
+        const sy = (img.height - side) / 2;
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+
+        let quality = 0.9;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        while(dataUrl.length > IC_AVATAR_MAX_BYTES && quality > 0.35){
+          quality -= 0.12;
+          dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        if(dataUrl.length > IC_AVATAR_MAX_BYTES){
+          reject(new Error(icT('dash.avatar.errorTooBig')));
+          return;
+        }
+        resolve(dataUrl);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function icWireAvatarUpload(){
+  const btn = document.getElementById('dash-avatar-btn');
+  const input = document.getElementById('dash-avatar-input');
+  const removeBtn = document.getElementById('dash-avatar-remove');
+  if(!btn || !input) return;
+
+  btn.addEventListener('click', () => input.click());
+
+  input.addEventListener('change', async () => {
+    const file = input.files && input.files[0];
+    input.value = '';
+    if(!file) return;
+    if(!/^image\/(png|jpeg|webp)$/.test(file.type)){
+      icToast(icT('dash.avatar.errorType'));
+      return;
+    }
+    try {
+      const dataUrl = await icReadAvatarFile(file);
+      const data = await icApiPost('/api/me/avatar', { avatar: dataUrl });
+      icDashUser = data.user;
+      icToast(icT('dash.avatar.saved'));
+      icDashRenderProfile(icDashUser);
+    } catch (err) {
+      icToast(err.message);
+    }
+  });
+
+  removeBtn?.addEventListener('click', async () => {
+    try {
+      const data = await icApiDelete('/api/me/avatar');
+      icDashUser = data.user;
+      icToast(icT('dash.avatar.removed'));
+      icDashRenderProfile(icDashUser);
+    } catch (err) {
+      icToast(err.message);
+    }
+  });
 }
 
 function icDashField(key, icon, value, extraHtml, wide){

@@ -124,6 +124,8 @@ function addColumnIfMissing(table, columnDef) {
 addColumnIfMissing('users', 'is_admin INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('users', 'banned INTEGER NOT NULL DEFAULT 0');
 addColumnIfMissing('users', 'subscription_until TEXT');
+// users: profile avatar — stored as a data: URL (small, resized client-side).
+addColumnIfMissing('users', 'avatar TEXT');
 
 // activation_keys: richer key system (duration, uses, reward type)
 addColumnIfMissing('activation_keys', "reward_type TEXT NOT NULL DEFAULT 'subscription'");

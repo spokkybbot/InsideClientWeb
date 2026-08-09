@@ -54,12 +54,16 @@ function icRenderPlanCard(plan, i){
   return `
     <div class="plan-card reveal ${plan.featured ? 'featured' : ''}" style="transition-delay:${i * 0.06}s">
       <div class="plan-art">${ICONS[plan.icon]}</div>
-      <div class="plan-name">${plan.name[icBuyLang()]}</div>
-      <div class="plan-desc">${plan.desc[icBuyLang()]}</div>
-      <div class="plan-price"><span class="amount">${plan.price}</span><span class="cur">₽</span></div>
-      <button type="button" class="btn btn-primary btn-block" data-plan="${plan.id}">
-        ${ICONS.cart}<span>${icT('buy.action')}</span>
-      </button>
+      <div class="plan-body">
+        <div class="plan-name">${plan.name[icBuyLang()]}</div>
+        <div class="plan-desc">${plan.desc[icBuyLang()]}</div>
+        <div class="plan-bottom">
+          <div class="plan-price"><span class="amount">${plan.price}</span><span class="cur">₽</span></div>
+          <button type="button" class="btn btn-primary" data-plan="${plan.id}">
+            ${ICONS.cart}<span>${icT('buy.action')}</span>
+          </button>
+        </div>
+      </div>
     </div>
   `;
 }

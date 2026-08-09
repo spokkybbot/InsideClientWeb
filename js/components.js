@@ -16,6 +16,7 @@ function icRenderHeader(active){
   const themeSwatchesHtml = IC_THEMES.map(t => (
     `<button type="button" class="theme-swatch" data-theme="${t.id}"><span class="swatch-dot swatch-${t.id}"></span>${t.label}</button>`
   )).join('');
+  const customHex = icGetCustomAccentHex();
 
   return `
   <div class="container">
@@ -35,6 +36,12 @@ function icRenderHeader(active){
         <div class="theme-switch-menu hidden" id="theme-switch-menu">
           <div class="theme-switch-head">${ICONS.brush}<span class="theme-switch-title" data-i18n="theme.title">Тема оформления</span></div>
           <div class="theme-switch-grid">${themeSwatchesHtml}</div>
+          <div class="theme-switch-divider"></div>
+          <label class="theme-custom-row" id="theme-swatch-custom" for="theme-custom-color">
+            <input type="color" id="theme-custom-color" class="swatch-custom-input" value="${customHex}" aria-label="${icT('theme.custom.pick')}">
+            <span data-i18n="theme.custom">Своя тема</span>
+            <span class="theme-custom-icon">${ICONS.palette}</span>
+          </label>
         </div>
       </div>
     </div>
