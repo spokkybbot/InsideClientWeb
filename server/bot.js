@@ -19,7 +19,7 @@ const db = require('./db');
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const API = TOKEN ? `https://api.telegram.org/bot${TOKEN}` : null;
 
-const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME || 'schoolshooter2016';
+const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME || 'insideclient_support';
 // TODO: заменить на реальную ссылку на карточку/профиль после того, как
 // появится настоящий листинг на FunPay — это временная заглушка.
 const FUNPAY_URL = process.env.FUNPAY_URL || 'https://funpay.com/';
@@ -140,8 +140,9 @@ function linkInstructionsText() {
 function supportText() {
   return (
     `По всем вопросам поддержки пишите: @${SUPPORT_USERNAME}\n\n` +
-    'Перед тем как что-либо оплачивать или передавать данные — рекомендуем проверить ' +
-    'аккаунт поддержки на nometa.xyz, чтобы убедиться, что он не засвечен в скам-базах.'
+    'Совет: сразу пишите суть вопроса одним сообщением, без «можно спросить?» и ' +
+    '«вы тут?» — так поддержка увидит вопрос сразу и ответит быстрее ' +
+    '(см. nometa.xyz, если интересно почему).'
   );
 }
 

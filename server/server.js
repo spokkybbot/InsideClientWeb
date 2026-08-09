@@ -3,6 +3,7 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { URL } = require('url');
 
 const db = require('./db');
@@ -22,6 +23,22 @@ const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || 'InsideClientBot';
 // появится настоящий листинг на FunPay — это временная заглушка вместо
 // реальной оплаты.
 const FUNPAY_URL = process.env.FUNPAY_URL || 'https://funpay.com/';
+
+// Same list db.js applies at boot — re-checked on every register/login too,
+// so granting admin to a login that doesn't have an account yet (or wasn't
+// in ADMIN_LOGINS when the server last started) doesn't need a restart.
+const ADMIN_LOGINS = (process.env.ADMIN_LOGINS || '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function maybePromoteAdmin(user) {
+  if (!user.is_admin && ADMIN_LOGINS.includes(user.login.toLowerCase())) {
+    db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(user.id);
+    return db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  }
+  return user;
+}
 
 /* ---------------------------------------------------------------------- */
 /* Small helpers                                                          */
@@ -125,6 +142,20 @@ function requireAuth(req, res) {
     fail(res, 401, 'Требуется авторизация.');
     return null;
   }
+  if (user.banned) {
+    fail(res, 403, 'Аккаунт заблокирован.');
+    return null;
+  }
+  return user;
+}
+
+function requireAdmin(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return null;
+  if (!user.is_admin) {
+    fail(res, 403, 'Доступ только для администраторов.');
+    return null;
+  }
   return user;
 }
 
@@ -139,6 +170,19 @@ function formatDate(iso) {
   return `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+function isSubscriptionActive(user) {
+  return Boolean(user.subscription_until && new Date(user.subscription_until).getTime() > Date.now());
+}
+
+// Rank/group. Admin is a manually-assigned flag and always wins; otherwise
+// the existing "Пользователь"/"Нету" logic (derived from ownership) applies,
+// now also counting an active timed subscription as ownership.
+function computeGroup(user, clientPurchases) {
+  if (user.is_admin) return 'Админ';
+  if (isSubscriptionActive(user) || clientPurchases.length) return 'Пользователь';
+  return 'Нету';
+}
+
 function userToDto(user) {
   const purchases = db
     .prepare('SELECT product, source, purchased_at FROM purchases WHERE user_id = ? ORDER BY purchased_at DESC')
@@ -150,12 +194,16 @@ function userToDto(user) {
   return {
     uid: user.id,
     login: user.login,
-    group: clientPurchases.length ? 'Пользователь' : 'Нету',
+    isAdmin: Boolean(user.is_admin),
+    banned: Boolean(user.banned),
+    group: computeGroup(user, clientPurchases),
     regdate: formatDate(user.created_at),
     lastlogin: formatDate(user.last_login),
     hwid: user.hwid || null,
     telegram: user.telegram_username || null,
     telegramLinked: Boolean(user.telegram_chat_id),
+    subscriptionActive: isSubscriptionActive(user),
+    subscriptionUntil: user.subscription_until ? formatDate(user.subscription_until) : null,
     purchases: clientPurchases.map((p) => ({
       product: p.product,
       purchasedAt: formatDate(p.purchased_at),
@@ -199,7 +247,7 @@ async function handleRegister(req, res) {
     .prepare('INSERT INTO users (login, password_hash, created_at, last_login) VALUES (?, ?, ?, ?)')
     .run(login, passwordHash, createdAt, createdAt);
 
-  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+  const user = maybePromoteAdmin(db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid));
 
   const token = newToken();
   const expiresAt = new Date(Date.now() + SESSION_LONG_MS).toISOString();
@@ -237,9 +285,12 @@ async function handleLogin(req, res) {
   if (!user || !verifyPassword(password, user.password_hash)) {
     return fail(res, 401, 'Неверный логин или пароль.');
   }
+  if (user.banned) {
+    return fail(res, 403, 'Аккаунт заблокирован.');
+  }
 
   db.prepare('UPDATE users SET last_login = ? WHERE id = ?').run(nowIso(), user.id);
-  const freshUser = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+  const freshUser = maybePromoteAdmin(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id));
 
   const token = newToken();
   const maxAge = remember ? SESSION_LONG_MS : SESSION_SHORT_MS;
@@ -412,22 +463,239 @@ async function handleKeyActivate(req, res) {
 
   const row = db.prepare('SELECT * FROM activation_keys WHERE activation_key = ?').get(key);
   if (!row) return fail(res, 404, 'Ключ не найден.');
-  if (row.used) return fail(res, 409, 'Ключ уже активирован.');
 
-  db.prepare('UPDATE activation_keys SET used = 1, used_by = ?, used_at = ? WHERE activation_key = ?').run(
+  const maxUses = row.max_uses || 1;
+  const usesCount = row.uses_count || row.used || 0;
+  if (usesCount >= maxUses) return fail(res, 409, 'Ключ уже активирован максимальное количество раз.');
+
+  if (row.expires_at && new Date(row.expires_at).getTime() < Date.now()) {
+    return fail(res, 410, 'Срок действия ключа истёк.');
+  }
+
+  const alreadyUsedByThisUser = db
+    .prepare('SELECT 1 FROM key_uses WHERE activation_key = ? AND user_id = ?')
+    .get(key, user.id);
+  if (alreadyUsedByThisUser) return fail(res, 409, 'Вы уже активировали этот ключ.');
+
+  const rewardType = row.reward_type || 'subscription';
+  let productLabel = row.product;
+
+  if (rewardType === 'hwid_reset') {
+    db.prepare('UPDATE users SET hwid = NULL WHERE id = ?').run(user.id);
+    productLabel = 'Сброс HWID';
+  } else if (row.subscription_days) {
+    // Per spec, both the key's own validity window *and* the subscription
+    // duration it grants start counting from the moment the key was
+    // created, not from the moment it's redeemed.
+    const base = row.created_at ? new Date(row.created_at).getTime() : Date.now();
+    const grantedUntil = base + row.subscription_days * 24 * 60 * 60 * 1000;
+    const currentUntil = user.subscription_until ? new Date(user.subscription_until).getTime() : 0;
+    const newUntil = Math.max(currentUntil, grantedUntil);
+    db.prepare('UPDATE users SET subscription_until = ? WHERE id = ?').run(
+      new Date(newUntil).toISOString(),
+      user.id
+    );
+    productLabel = `Подписка (${row.subscription_days} дн.)`;
+  }
+
+  db.prepare('INSERT INTO purchases (user_id, product, source, purchased_at) VALUES (?, ?, ?, ?)').run(
+    user.id,
+    productLabel,
+    'key',
+    nowIso()
+  );
+  db.prepare('INSERT INTO key_uses (activation_key, user_id, used_at) VALUES (?, ?, ?)').run(
+    key,
+    user.id,
+    nowIso()
+  );
+
+  const newUsesCount = usesCount + 1;
+  db.prepare('UPDATE activation_keys SET uses_count = ?, used = ?, used_by = ?, used_at = ? WHERE activation_key = ?').run(
+    newUsesCount,
+    newUsesCount >= maxUses ? 1 : 0,
     user.id,
     nowIso(),
     key
   );
-  db.prepare('INSERT INTO purchases (user_id, product, source, purchased_at) VALUES (?, ?, ?, ?)').run(
-    user.id,
-    row.product,
-    'key',
-    nowIso()
-  );
 
   const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
   sendJson(res, 200, { user: userToDto(fresh) });
+}
+
+/* ---------------------------------------------------------------------- */
+/* Admin — rank, account checker, key creation                            */
+/* ---------------------------------------------------------------------- */
+
+function findUserByQuery(raw) {
+  const q = String(raw || '').trim();
+  if (!q) return null;
+
+  if (/^\d+$/.test(q)) {
+    const byId = db.prepare('SELECT * FROM users WHERE id = ?').get(Number(q));
+    if (byId) return byId;
+  }
+
+  const byLogin = db.prepare('SELECT * FROM users WHERE login = ? COLLATE NOCASE').get(q);
+  if (byLogin) return byLogin;
+
+  const tgHandle = q.replace(/^@/, '');
+  const byTelegram = db
+    .prepare('SELECT * FROM users WHERE telegram_username = ? COLLATE NOCASE')
+    .get(tgHandle);
+  if (byTelegram) return byTelegram;
+
+  return null;
+}
+
+function handleAdminUserLookup(req, res, url) {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  const query = url.searchParams.get('query');
+  const user = findUserByQuery(query);
+  if (!user) return fail(res, 404, 'Пользователь не найден.');
+
+  const keyUses = db
+    .prepare(
+      `SELECT ku.activation_key, ku.used_at, ak.product, ak.reward_type, ak.subscription_days
+       FROM key_uses ku
+       JOIN activation_keys ak ON ak.activation_key = ku.activation_key
+       WHERE ku.user_id = ?
+       ORDER BY ku.used_at DESC`
+    )
+    .all(user.id);
+
+  sendJson(res, 200, {
+    profile: {
+      ...userToDto(user),
+      keysActivated: keyUses.map((k) => ({
+        key: k.activation_key,
+        product: k.product,
+        rewardType: k.reward_type,
+        activatedAt: formatDate(k.used_at),
+      })),
+    },
+  });
+}
+
+async function handleAdminBan(req, res) {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch (e) {
+    return fail(res, 400, 'Некорректный запрос.');
+  }
+
+  const uid = Number(body.uid);
+  const banned = Boolean(body.banned);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+  if (!user) return fail(res, 404, 'Пользователь не найден.');
+
+  db.prepare('UPDATE users SET banned = ? WHERE id = ?').run(banned ? 1 : 0, uid);
+  if (banned) db.prepare('DELETE FROM sessions WHERE user_id = ?').run(uid);
+
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+  sendJson(res, 200, { user: userToDto(fresh) });
+}
+
+async function handleAdminRevokeSubscription(req, res) {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch (e) {
+    return fail(res, 400, 'Некорректный запрос.');
+  }
+
+  const uid = Number(body.uid);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+  if (!user) return fail(res, 404, 'Пользователь не найден.');
+
+  db.prepare('UPDATE users SET subscription_until = NULL WHERE id = ?').run(uid);
+
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+  sendJson(res, 200, { user: userToDto(fresh) });
+}
+
+// Key format: SEGA-HHHH-UUUU-DDDD
+//   SEGA = random 4-character segment
+//   HHHH = hours the key itself stays redeemable for (0000 = no expiry)
+//   UUUU = how many times the key can be redeemed
+//   DDDD = subscription length in days it grants (0000 for an HWID-reset key,
+//          since that reward has no duration of its own)
+const KEY_SEGMENT_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function randomKeySegment(len) {
+  const bytes = crypto.randomBytes(len);
+  let out = '';
+  for (let i = 0; i < len; i++) out += KEY_SEGMENT_ALPHABET[bytes[i] % KEY_SEGMENT_ALPHABET.length];
+  return out;
+}
+
+function generateActivationKey({ hoursValid, maxUses, rewardType, subscriptionDays }) {
+  const seg1 = randomKeySegment(4);
+  const seg2 = String(Math.max(0, hoursValid)).padStart(4, '0').slice(-4);
+  const seg3 = String(Math.max(1, maxUses)).padStart(4, '0').slice(-4);
+  const seg4 = rewardType === 'hwid_reset' ? '0000' : String(Math.max(0, subscriptionDays || 0)).padStart(4, '0').slice(-4);
+  return `${seg1}-${seg2}-${seg3}-${seg4}`;
+}
+
+async function handleAdminCreateKey(req, res) {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch (e) {
+    return fail(res, 400, 'Некорректный запрос.');
+  }
+
+  const hoursValid = Math.max(0, Math.min(999999, parseInt(body.hoursValid, 10) || 0));
+  const maxUses = Math.max(1, Math.min(9999, parseInt(body.maxUses, 10) || 1));
+  const rewardType = body.rewardType === 'hwid_reset' ? 'hwid_reset' : 'subscription';
+  const subscriptionDays =
+    rewardType === 'subscription' ? Math.max(1, Math.min(9999, parseInt(body.subscriptionDays, 10) || 0)) : null;
+
+  if (rewardType === 'subscription' && !subscriptionDays) {
+    return fail(res, 400, 'Укажите срок подписки в днях.');
+  }
+
+  const createdAt = nowIso();
+  const expiresAt = hoursValid > 0 ? new Date(Date.now() + hoursValid * 60 * 60 * 1000).toISOString() : null;
+  const product = rewardType === 'hwid_reset' ? 'Сброс HWID' : `Подписка (${subscriptionDays} дн.)`;
+
+  let activationKey = null;
+  for (let attempt = 0; attempt < 5 && !activationKey; attempt++) {
+    const candidate = generateActivationKey({ hoursValid, maxUses, rewardType, subscriptionDays });
+    const exists = db.prepare('SELECT 1 FROM activation_keys WHERE activation_key = ?').get(candidate);
+    if (!exists) activationKey = candidate;
+  }
+  if (!activationKey) return fail(res, 500, 'Не удалось сгенерировать уникальный ключ, попробуйте ещё раз.');
+
+  db.prepare(
+    `INSERT INTO activation_keys
+       (activation_key, product, reward_type, max_uses, uses_count, hours_valid, subscription_days, created_at, expires_at, created_by)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
+  ).run(activationKey, product, rewardType, maxUses, hoursValid, subscriptionDays, createdAt, expiresAt, admin.id);
+
+  sendJson(res, 201, {
+    key: {
+      activationKey,
+      product,
+      rewardType,
+      maxUses,
+      hoursValid,
+      subscriptionDays,
+      createdAt: formatDate(createdAt),
+      expiresAt: expiresAt ? formatDate(expiresAt) : 'Бессрочно',
+    },
+  });
 }
 
 /* ---------------------------------------------------------------------- */
@@ -481,6 +749,10 @@ const API_ROUTES = {
   'POST /api/password/change': handlePasswordChange,
   'POST /api/purchases/buy': handleBuy,
   'POST /api/key/activate': handleKeyActivate,
+  'GET /api/admin/user': handleAdminUserLookup,
+  'POST /api/admin/ban': handleAdminBan,
+  'POST /api/admin/subscription/revoke': handleAdminRevokeSubscription,
+  'POST /api/admin/keys/create': handleAdminCreateKey,
 };
 
 const server = http.createServer((req, res) => {
@@ -490,7 +762,7 @@ const server = http.createServer((req, res) => {
   if (url.pathname.startsWith('/api/')) {
     const handler = API_ROUTES[key];
     if (!handler) return fail(res, 404, 'Неизвестный маршрут.');
-    Promise.resolve(handler(req, res)).catch((err) => {
+    Promise.resolve(handler(req, res, url)).catch((err) => {
       console.error(err);
       fail(res, 500, 'Внутренняя ошибка сервера.');
     });

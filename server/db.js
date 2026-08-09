@@ -102,4 +102,82 @@ if (keyCount === 0) {
   for (const k of demoKeys) insertKey.run(k, 'Клиент 1.16.5');
 }
 
+/* ---------------------------------------------------------------------- */
+/* Migrations — ranks (admin), bans, subscriptions, key system upgrade.   */
+/* Written as additive ALTER TABLEs guarded by PRAGMA table_info so they  */
+/* are safe to run against a pre-existing database file as well as a     */
+/* fresh one.                                                             */
+/* ---------------------------------------------------------------------- */
+
+function columnExists(table, column) {
+  return db.prepare(`PRAGMA table_info(${table})`).all().some((r) => r.name === column);
+}
+
+function addColumnIfMissing(table, columnDef) {
+  const name = columnDef.trim().split(/\s+/)[0];
+  if (!columnExists(table, name)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${columnDef}`);
+  }
+}
+
+// users: rank/ban/subscription
+addColumnIfMissing('users', 'is_admin INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('users', 'banned INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('users', 'subscription_until TEXT');
+
+// activation_keys: richer key system (duration, uses, reward type)
+addColumnIfMissing('activation_keys', "reward_type TEXT NOT NULL DEFAULT 'subscription'");
+addColumnIfMissing('activation_keys', 'max_uses INTEGER NOT NULL DEFAULT 1');
+addColumnIfMissing('activation_keys', 'uses_count INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('activation_keys', 'hours_valid INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('activation_keys', 'subscription_days INTEGER');
+addColumnIfMissing('activation_keys', 'created_at TEXT');
+addColumnIfMissing('activation_keys', 'expires_at TEXT');
+addColumnIfMissing('activation_keys', 'created_by INTEGER');
+
+// Backfill created_at/uses_count for keys that existed before this migration
+// (the three demo keys), so the new logic has sane values to work with.
+db.exec(`
+  UPDATE activation_keys SET created_at = COALESCE(created_at, datetime('now'));
+  UPDATE activation_keys SET uses_count = used WHERE uses_count = 0 AND used = 1;
+`);
+
+// Per-activation log — lets the admin checker show *every* key a user has
+// ever redeemed (a key can now be reused up to max_uses times, possibly by
+// different accounts, so activation_keys.used_by alone is no longer enough).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS key_uses (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    activation_key TEXT NOT NULL,
+    user_id        INTEGER NOT NULL,
+    used_at        TEXT NOT NULL,
+    FOREIGN KEY(activation_key) REFERENCES activation_keys(activation_key),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+`);
+
+// Migrate any pre-existing single-use redemptions into the new log so old
+// demo-key activations still show up in the admin checker.
+db.exec(`
+  INSERT INTO key_uses (activation_key, user_id, used_at)
+  SELECT activation_key, used_by, COALESCE(used_at, datetime('now'))
+  FROM activation_keys
+  WHERE used_by IS NOT NULL
+    AND activation_key NOT IN (SELECT activation_key FROM key_uses);
+`);
+
+// Grant admin rank to any logins listed in ADMIN_LOGINS (comma-separated),
+// e.g. `ADMIN_LOGINS=owner,alice node server/server.js`. Re-applied on every
+// boot so it also picks up accounts that register after this env var is set.
+const adminLogins = (process.env.ADMIN_LOGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (adminLogins.length) {
+  const placeholders = adminLogins.map(() => '?').join(',');
+  db.prepare(`UPDATE users SET is_admin = 1 WHERE login COLLATE NOCASE IN (${placeholders})`).run(
+    ...adminLogins
+  );
+}
+
 module.exports = db;

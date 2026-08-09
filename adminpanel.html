@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — Inside Client</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="admin">
+
+  <div id="cursor-glow"></div>
+  <header class="site-header" id="app-header"></header>
+
+  <main>
+    <div class="dash-shell">
+      <div class="dash-head reveal">
+        <span class="eyebrow"><span class="dot"></span>Admin Panel</span>
+        <h1>Панель администратора</h1>
+      </div>
+
+      <section class="admin-section reveal">
+        <h2 class="admin-section-title">Чекер аккаунтов</h2>
+        <p class="admin-section-hint">Поиск по UID, логину или Telegram-username (с @ или без).</p>
+        <div class="admin-search-row">
+          <input type="text" id="admin-search-input" class="dash-item-input admin-search-input" placeholder="UID / логин / @telegram" autocomplete="off">
+          <button type="button" class="btn btn-primary" id="admin-search-btn">Найти</button>
+        </div>
+        <div id="admin-search-result"></div>
+      </section>
+
+      <section class="admin-section reveal">
+        <h2 class="admin-section-title">Создание ключа</h2>
+        <form id="admin-key-form" class="admin-key-form">
+          <label class="admin-field">
+            <span>Время работы ключа, часов (0 = бессрочно)</span>
+            <input type="number" min="0" id="key-hours" class="dash-item-input" value="24" required>
+          </label>
+          <label class="admin-field">
+            <span>Количество использований</span>
+            <input type="number" min="1" id="key-uses" class="dash-item-input" value="1" required>
+          </label>
+          <label class="admin-field">
+            <span>Награда</span>
+            <select id="key-reward" class="dash-item-input">
+              <option value="subscription">Подписка</option>
+              <option value="hwid_reset">Сброс HWID</option>
+            </select>
+          </label>
+          <label class="admin-field" id="key-days-field">
+            <span>Срок подписки, дней</span>
+            <input type="number" min="1" id="key-days" class="dash-item-input" value="30">
+          </label>
+          <button type="submit" class="btn btn-white admin-key-submit">Create key</button>
+        </form>
+        <div id="admin-key-result"></div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="site-footer" id="app-footer"></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/cursor.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

@@ -22,12 +22,27 @@
       loginBtn.setAttribute('href', 'dashboard.html');
       const label = loginBtn.querySelector('.btn-label');
       if (label) { label.removeAttribute('data-i18n'); label.textContent = user.login; }
+
+      // Admin Panel button, shown only to admins, sitting between "Купить"
+      // and the account button ("личный кабинет").
+      if (user.isAdmin && loginBtn.parentElement && !document.getElementById('nav-admin-link')) {
+        const adminBtn = document.createElement('a');
+        adminBtn.id = 'nav-admin-link';
+        adminBtn.href = 'adminpanel.html';
+        adminBtn.className = `btn ${page === 'admin' ? 'btn-primary' : 'btn-outline'}`;
+        adminBtn.innerHTML = `<span class="btn-icon">${ICONS.shield}</span><span class="btn-label">Admin Panel</span>`;
+        loginBtn.parentElement.insertBefore(adminBtn, loginBtn);
+      }
     }
     if (page === 'login' || page === 'register') {
       window.location.href = 'dashboard.html';
       return;
     }
-  } else if (page === 'dashboard' || page === 'password') {
+    if (page === 'admin' && !user.isAdmin) {
+      window.location.href = 'dashboard.html';
+      return;
+    }
+  } else if (page === 'dashboard' || page === 'password' || page === 'admin') {
     window.location.href = 'login.html';
     return;
   }
