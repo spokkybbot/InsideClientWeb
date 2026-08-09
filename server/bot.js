@@ -19,7 +19,7 @@ const db = require('./db');
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const API = TOKEN ? `https://api.telegram.org/bot${TOKEN}` : null;
 
-const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME || 'insideclient_support';
+const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME || 'SchoolShooter2016';
 // TODO: заменить на реальную ссылку на карточку/профиль после того, как
 // появится настоящий листинг на FunPay — это временная заглушка.
 const FUNPAY_URL = process.env.FUNPAY_URL || 'https://funpay.com/';
