@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Личный кабинет — Inside Client</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="dashboard">
+
+  <div id="cursor-glow"></div>
+  <header class="site-header" id="app-header"></header>
+
+  <main>
+    <div class="dash-shell">
+      <div class="dash-head reveal">
+        <span class="eyebrow"><span class="dot"></span><span data-i18n="dash.eyebrow">Аккаунт</span></span>
+        <h1 data-i18n="dash.title">Личный кабинет</h1>
+      </div>
+
+      <div class="dash-grid" id="dash-grid"></div>
+      <div class="dash-actions" id="dash-actions"></div>
+    </div>
+  </main>
+
+  <footer class="site-footer" id="app-footer"></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/cursor.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
