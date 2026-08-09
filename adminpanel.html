@@ -38,6 +38,10 @@
         <h2 class="admin-section-title">Создание ключа</h2>
         <form id="admin-key-form" class="admin-key-form">
           <label class="admin-field">
+            <span>Количество ключей</span>
+            <input type="number" min="1" max="100" id="key-count" class="dash-item-input" value="1" required>
+          </label>
+          <label class="admin-field">
             <span>Время работы ключа, часов (0 = бессрочно)</span>
             <input type="number" min="0" id="key-hours" class="dash-item-input" value="24" required>
           </label>
@@ -50,6 +54,7 @@
             <select id="key-reward" class="dash-item-input">
               <option value="subscription">Подписка</option>
               <option value="hwid_reset">Сброс HWID</option>
+              <option value="bot_access">Доступ к боту</option>
             </select>
           </label>
           <label class="admin-field" id="key-days-field">

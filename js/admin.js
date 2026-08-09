@@ -122,38 +122,61 @@ document.addEventListener('ic:session-ready', (e) => {
   const daysField = document.getElementById('key-days-field');
   function syncRewardFields(){
     if(!rewardSelect || !daysField) return;
-    daysField.style.display = rewardSelect.value === 'hwid_reset' ? 'none' : '';
+    daysField.style.display = rewardSelect.value === 'subscription' ? '' : 'none';
   }
   rewardSelect?.addEventListener('change', syncRewardFields);
   syncRewardFields();
 
+  function icRewardLabel(rewardType){
+    if(rewardType === 'hwid_reset') return 'Сброс HWID';
+    if(rewardType === 'bot_access') return 'Доступ к боту';
+    return null; // подставляется отдельно, с указанием дней подписки
+  }
+
   document.getElementById('admin-key-form')?.addEventListener('submit', async (ev) => {
     ev.preventDefault();
+    const count = Number(document.getElementById('key-count').value);
     const hoursValid = Number(document.getElementById('key-hours').value);
     const maxUses = Number(document.getElementById('key-uses').value);
     const rewardType = document.getElementById('key-reward').value;
     const subscriptionDays = Number(document.getElementById('key-days').value);
 
     try {
-      const data = await icApiPost('/api/admin/keys/create', { hoursValid, maxUses, rewardType, subscriptionDays });
+      const data = await icApiPost('/api/admin/keys/create', { count, hoursValid, maxUses, rewardType, subscriptionDays });
       const resultBox = document.getElementById('admin-key-result');
-      if(resultBox){
-        const rewardLabel = data.key.rewardType === 'hwid_reset'
-          ? 'Сброс HWID'
-          : `Подписка ${data.key.subscriptionDays} дн.`;
-        resultBox.innerHTML = `
+      if(resultBox && data.keys && data.keys.length){
+        const first = data.keys[0];
+        const rewardLabel = icRewardLabel(first.rewardType) || `Подписка ${first.subscriptionDays} дн.`;
+
+        const keysHtml = data.keys.map(k => `
           <div class="admin-key-created">
-            <span class="admin-key-value" id="admin-key-value">${data.key.activationKey}</span>
-            <button type="button" class="btn btn-outline" id="admin-key-copy">Скопировать</button>
+            <span class="admin-key-value">${k.activationKey}</span>
+            <button type="button" class="btn btn-outline admin-key-copy-one" data-key="${k.activationKey}">Скопировать</button>
           </div>
-          <p class="admin-key-meta">${rewardLabel} · использований: ${data.key.maxUses} · доступен до: ${data.key.expiresAt}</p>
+        `).join('');
+
+        const copyAllBtn = data.keys.length > 1
+          ? `<button type="button" class="btn btn-outline" id="admin-key-copy-all">Скопировать все (${data.keys.length})</button>`
+          : '';
+
+        resultBox.innerHTML = `
+          <div class="admin-key-created-list">${keysHtml}</div>
+          ${copyAllBtn}
+          <p class="admin-key-meta">${rewardLabel} · использований: ${first.maxUses} · доступен до: ${first.expiresAt}</p>
         `;
-        document.getElementById('admin-key-copy')?.addEventListener('click', () => {
-          navigator.clipboard?.writeText(data.key.activationKey);
-          icToast('Ключ скопирован.');
+
+        resultBox.querySelectorAll('.admin-key-copy-one').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            navigator.clipboard?.writeText(btn.dataset.key);
+            icToast('Ключ скопирован.');
+          });
+        });
+        document.getElementById('admin-key-copy-all')?.addEventListener('click', () => {
+          navigator.clipboard?.writeText(data.keys.map((k) => k.activationKey).join('\n'));
+          icToast('Все ключи скопированы.');
         });
       }
-      icToast('Ключ создан.');
+      icToast(data.keys && data.keys.length > 1 ? `Создано ключей: ${data.keys.length}.` : 'Ключ создан.');
     } catch (err) { icToast(err.message); }
   });
 });

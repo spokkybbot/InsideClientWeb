@@ -167,6 +167,8 @@ function icDashRender(){
     ? `${icT('dash.value.activeUntil')} ${u.subscriptionUntilFull}`
     : icT('dash.value.noSubscription');
 
+  const botAccessValue = u.botAccess ? '@Sp00kyEventsBot' : noneLabel;
+
   grid.innerHTML = [
     icDashField('regdate', 'calendar', u.regdate || '—'),
     icDashField('lastlogin', 'clock', u.lastlogin || '—'),
@@ -175,6 +177,7 @@ function icDashRender(){
     icDashField('purchases', 'cart', purchasesValue,
       `<button type="button" class="btn btn-outline dash-item-action" id="dash-purchases-details">${ICONS.info}<span data-i18n="dash.row.details"></span></button>`, true),
     icDashField('subscription', 'clock', subscriptionValue, '', true),
+    icDashField('botaccess', 'chat', botAccessValue, '', true),
     `<div class="dash-item reveal dash-item-wide has-panel" id="dash-telegram-item">
       <span class="dash-item-icon">${ICONS.telegram}</span>
       <span class="dash-item-body">

@@ -127,6 +127,9 @@ addColumnIfMissing('users', 'subscription_until TEXT');
 // users: profile avatar — stored as a data: URL (small, resized client-side).
 addColumnIfMissing('users', 'avatar TEXT');
 
+// users: профиль — доступ к боту (выдаётся отдельным типом ключа)
+addColumnIfMissing('users', 'bot_access INTEGER NOT NULL DEFAULT 0');
+
 // activation_keys: richer key system (duration, uses, reward type)
 addColumnIfMissing('activation_keys', "reward_type TEXT NOT NULL DEFAULT 'subscription'");
 addColumnIfMissing('activation_keys', 'max_uses INTEGER NOT NULL DEFAULT 1');

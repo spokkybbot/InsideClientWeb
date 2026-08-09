@@ -1642,6 +1642,24 @@ main{
   flex-wrap:wrap;
 }
 
+.admin-key-created-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-height:340px;
+  overflow-y:auto;
+  padding-right:4px;
+}
+
+.admin-key-created-list .admin-key-created{
+  padding:8px 10px;
+  border:1px solid var(--border);
+  border-radius:var(--radius-s);
+  justify-content:space-between;
+}
+
+#admin-key-copy-all{ margin-top:12px; }
+
 .admin-key-value{
   font-family:var(--f-mono);
   font-size:16px;

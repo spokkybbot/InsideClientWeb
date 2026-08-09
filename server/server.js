@@ -213,6 +213,7 @@ function userToDto(user) {
     telegram: user.telegram_username || null,
     telegramLinked: Boolean(user.telegram_chat_id),
     avatar: user.avatar || null,
+    botAccess: Boolean(user.bot_access),
     subscriptionActive: isSubscriptionActive(user),
     subscriptionUntil: user.subscription_until ? formatDate(user.subscription_until) : null,
     subscriptionUntilFull: user.subscription_until ? formatDateFull(user.subscription_until) : null,
@@ -534,6 +535,9 @@ async function handleKeyActivate(req, res) {
   if (rewardType === 'hwid_reset') {
     db.prepare('UPDATE users SET hwid = NULL WHERE id = ?').run(user.id);
     productLabel = 'Сброс HWID';
+  } else if (rewardType === 'bot_access') {
+    db.prepare('UPDATE users SET bot_access = 1 WHERE id = ?').run(user.id);
+    productLabel = 'Доступ к боту';
   } else if (row.subscription_days) {
     // Per spec, both the key's own validity window *and* the subscription
     // duration it grants start counting from the moment the key was
@@ -740,6 +744,15 @@ function generateActivationKey() {
   ].join('-');
 }
 
+const REWARD_TYPES = ['subscription', 'hwid_reset', 'bot_access'];
+const KEY_CREATE_MAX_COUNT = 100;
+
+function rewardProductLabel(rewardType, subscriptionDays) {
+  if (rewardType === 'hwid_reset') return 'Сброс HWID';
+  if (rewardType === 'bot_access') return 'Доступ к боту';
+  return `Подписка (${subscriptionDays} дн.)`;
+}
+
 async function handleAdminCreateKey(req, res) {
   const admin = requireAdmin(req, res);
   if (!admin) return;
@@ -753,9 +766,10 @@ async function handleAdminCreateKey(req, res) {
 
   const hoursValid = Math.max(0, Math.min(999999, parseInt(body.hoursValid, 10) || 0));
   const maxUses = Math.max(1, Math.min(9999, parseInt(body.maxUses, 10) || 1));
-  const rewardType = body.rewardType === 'hwid_reset' ? 'hwid_reset' : 'subscription';
+  const rewardType = REWARD_TYPES.includes(body.rewardType) ? body.rewardType : 'subscription';
   const subscriptionDays =
     rewardType === 'subscription' ? Math.max(1, Math.min(9999, parseInt(body.subscriptionDays, 10) || 0)) : null;
+  const count = Math.max(1, Math.min(KEY_CREATE_MAX_COUNT, parseInt(body.count, 10) || 1));
 
   if (rewardType === 'subscription' && !subscriptionDays) {
     return fail(res, 400, 'Укажите срок подписки в днях.');
@@ -763,24 +777,38 @@ async function handleAdminCreateKey(req, res) {
 
   const createdAt = nowIso();
   const expiresAt = hoursValid > 0 ? new Date(Date.now() + hoursValid * 60 * 60 * 1000).toISOString() : null;
-  const product = rewardType === 'hwid_reset' ? 'Сброс HWID' : `Подписка (${subscriptionDays} дн.)`;
+  const product = rewardProductLabel(rewardType, subscriptionDays);
 
-  let activationKey = null;
-  for (let attempt = 0; attempt < 5 && !activationKey; attempt++) {
-    const candidate = generateActivationKey();
-    const exists = db.prepare('SELECT 1 FROM activation_keys WHERE activation_key = ? COLLATE NOCASE').get(candidate);
-    if (!exists) activationKey = candidate;
-  }
-  if (!activationKey) return fail(res, 500, 'Не удалось сгенерировать уникальный ключ, попробуйте ещё раз.');
-
-  db.prepare(
+  const insertStmt = db.prepare(
     `INSERT INTO activation_keys
        (activation_key, product, reward_type, max_uses, uses_count, hours_valid, subscription_days, created_at, expires_at, created_by)
      VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
-  ).run(activationKey, product, rewardType, maxUses, hoursValid, subscriptionDays, createdAt, expiresAt, admin.id);
+  );
+  const existsStmt = db.prepare('SELECT 1 FROM activation_keys WHERE activation_key = ? COLLATE NOCASE');
+
+  const createdKeys = [];
+  for (let n = 0; n < count; n++) {
+    let activationKey = null;
+    for (let attempt = 0; attempt < 5 && !activationKey; attempt++) {
+      const candidate = generateActivationKey();
+      if (!existsStmt.get(candidate)) activationKey = candidate;
+    }
+    if (!activationKey) {
+      return fail(
+        res,
+        500,
+        createdKeys.length
+          ? `Создано ${createdKeys.length} из ${count} ключей — не удалось сгенерировать следующий уникальный ключ, попробуйте ещё раз.`
+          : 'Не удалось сгенерировать уникальный ключ, попробуйте ещё раз.'
+      );
+    }
+
+    insertStmt.run(activationKey, product, rewardType, maxUses, hoursValid, subscriptionDays, createdAt, expiresAt, admin.id);
+    createdKeys.push(activationKey);
+  }
 
   sendJson(res, 201, {
-    key: {
+    keys: createdKeys.map((activationKey) => ({
       activationKey,
       product,
       rewardType,
@@ -789,7 +817,7 @@ async function handleAdminCreateKey(req, res) {
       subscriptionDays,
       createdAt: formatDate(createdAt),
       expiresAt: expiresAt ? formatDate(expiresAt) : 'Бессрочно',
-    },
+    })),
   });
 }
 
