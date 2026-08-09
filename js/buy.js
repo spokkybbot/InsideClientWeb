@@ -55,7 +55,7 @@ function icRenderPlans(){
   `).join('');
 
   grid.querySelectorAll('[data-plan]').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       if(!window.icCurrentUser){
         icToast(icT('login.title'));
         setTimeout(() => { window.location.href = 'login.html'; }, 700);
@@ -66,9 +66,23 @@ function icRenderPlans(){
         setTimeout(() => { window.location.href = 'dashboard.html'; }, 900);
         return;
       }
-      // Purchase flow is a placeholder for now — a dedicated checkout page
-      // will replace this direct-buy call.
-      icToast(icT('toast.buyStub'));
+
+      const planId = btn.dataset.plan;
+      btn.disabled = true;
+      try {
+        const data = await icApiPost('/api/purchases/buy', { plan: planId });
+        if(data.redirect){
+          icToast(icT('toast.redirectFunpay'));
+          setTimeout(() => { window.location.href = data.redirect; }, 600);
+          return;
+        }
+        // HWID reset (or any other plan that resolves immediately) lands here.
+        icToast(icT('toast.hwidResetOk'));
+      } catch (err) {
+        icToast(err.message);
+      } finally {
+        btn.disabled = false;
+      }
     });
   });
 

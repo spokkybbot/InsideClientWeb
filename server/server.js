@@ -18,6 +18,10 @@ const SESSION_LONG_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days ("remember me")
 const LOGIN_RE = /^[A-Za-z0-9_]{3,20}$/;
 const LINK_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || 'InsideClientBot';
+// TODO: заменить на реальную ссылку на карточку/профиль после того, как
+// появится настоящий листинг на FunPay — это временная заглушка вместо
+// реальной оплаты.
+const FUNPAY_URL = process.env.FUNPAY_URL || 'https://funpay.com/';
 
 /* ---------------------------------------------------------------------- */
 /* Small helpers                                                          */
@@ -378,19 +382,18 @@ async function handleBuy(req, res) {
       'shop',
       nowIso()
     );
-  } else if (PLAN_PRODUCT[plan]) {
-    db.prepare('INSERT INTO purchases (user_id, product, source, purchased_at) VALUES (?, ?, ?, ?)').run(
-      user.id,
-      PLAN_PRODUCT[plan],
-      'shop',
-      nowIso()
-    );
-  } else {
-    return fail(res, 400, 'Неизвестный тариф.');
+    const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
+    return sendJson(res, 200, { user: userToDto(fresh) });
   }
 
-  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
-  sendJson(res, 200, { user: userToDto(fresh) });
+  if (PLAN_PRODUCT[plan]) {
+    // Реальной оплаты пока нет — вместо мгновенной "фейковой" покупки
+    // отправляем на FunPay. Telegram уже гарантированно привязан (проверка
+    // выше), это условие площадки.
+    return sendJson(res, 200, { redirect: FUNPAY_URL });
+  }
+
+  return fail(res, 400, 'Неизвестный тариф.');
 }
 
 async function handleKeyActivate(req, res) {
@@ -500,6 +503,6 @@ const server = http.createServer((req, res) => {
   res.end('Method not allowed');
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
   console.log(`Inside Client запущен: http://localhost:${PORT}`);
 });

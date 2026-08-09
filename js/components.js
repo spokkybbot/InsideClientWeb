@@ -1,6 +1,9 @@
 /* Reusable header + footer, mounted into every page from a single source. */
 
-const IC_TELEGRAM_URL = 'https://t.me/InsideJava';
+// Поддержка теперь идёт через бота (кнопка "Связаться с поддержкой" в его
+// клавиатуре) — если поменяешь TELEGRAM_BOT_USERNAME на сервере, поменяй
+// имя бота и здесь.
+const IC_TELEGRAM_URL = 'https://t.me/InsideClientBot';
 
 function icRenderHeader(active){
   const langs = ['RU', 'EN', 'KZ'];

@@ -19,6 +19,20 @@ const db = require('./db');
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 const API = TOKEN ? `https://api.telegram.org/bot${TOKEN}` : null;
 
+const SUPPORT_USERNAME = process.env.SUPPORT_USERNAME || 'schoolshooter2016';
+// TODO: заменить на реальную ссылку на карточку/профиль после того, как
+// появится настоящий листинг на FunPay — это временная заглушка.
+const FUNPAY_URL = process.env.FUNPAY_URL || 'https://funpay.com/';
+
+const BTN_LINK = '🔗 Привязать аккаунт';
+const BTN_SUPPORT = '💬 Связаться с поддержкой';
+const BTN_BUY = '🛒 Купить клиент';
+
+const MAIN_KEYBOARD = {
+  keyboard: [[BTN_LINK], [BTN_SUPPORT], [BTN_BUY]],
+  resize_keyboard: true,
+};
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -36,8 +50,14 @@ async function tg(method, params) {
   return data.result;
 }
 
-function sendMessage(chatId, text) {
-  return tg('sendMessage', { chat_id: chatId, text, parse_mode: 'HTML' });
+function sendMessage(chatId, text, extra) {
+  return tg('sendMessage', {
+    chat_id: chatId,
+    text,
+    parse_mode: 'HTML',
+    reply_markup: MAIN_KEYBOARD,
+    ...extra,
+  });
 }
 
 /* ---------------------------------------------------------------------- */
@@ -52,6 +72,10 @@ function sendMessage(chatId, text) {
  *   'not_found'  — no such code
  *   'used'       — code already consumed
  *   'expired'    — code past its TTL
+ *   'locked'     — this Telegram account was permanently bound to a
+ *                  *different* account in the past (even if since
+ *                  unlinked) and can never be bound to another one,
+ *                  details: { lockedLogin }
  *   'conflict'   — this chat is already linked to a *different* account, details: { conflictLogin }
  *   'already'    — this chat is already linked to the *same* account, details: { login }
  */
@@ -62,13 +86,21 @@ function linkByCode(code, chatId, username) {
   if (row.used) return { status: 'used' };
   if (new Date(row.expires_at).getTime() < Date.now()) return { status: 'expired' };
 
+  const user = db.prepare('SELECT id, login FROM users WHERE id = ?').get(row.user_id);
+  if (!user) return { status: 'not_found' };
+
+  // Постоянная блокировка: этот Telegram уже когда-либо привязывался к
+  // ДРУГОМУ аккаунту — навсегда, даже если сейчас отвязан от него.
+  const permanent = db.prepare('SELECT user_id FROM telegram_bindings WHERE telegram_chat_id = ?').get(chatId);
+  if (permanent && permanent.user_id !== user.id) {
+    const lockedUser = db.prepare('SELECT login FROM users WHERE id = ?').get(permanent.user_id);
+    return { status: 'locked', lockedLogin: lockedUser ? lockedUser.login : null };
+  }
+
   const existing = db.prepare('SELECT id, login FROM users WHERE telegram_chat_id = ?').get(chatId);
   if (existing && existing.id !== row.user_id) {
     return { status: 'conflict', conflictLogin: existing.login };
   }
-
-  const user = db.prepare('SELECT id, login FROM users WHERE id = ?').get(row.user_id);
-  if (!user) return { status: 'not_found' };
 
   if (existing && existing.id === row.user_id) {
     db.prepare('UPDATE telegram_link_codes SET used = 1 WHERE code = ?').run(code);
@@ -82,7 +114,42 @@ function linkByCode(code, chatId, username) {
   );
   db.prepare('UPDATE telegram_link_codes SET used = 1 WHERE code = ?').run(code);
 
+  if (!permanent) {
+    db.prepare('INSERT INTO telegram_bindings (telegram_chat_id, user_id, linked_at) VALUES (?, ?, ?)').run(
+      chatId,
+      user.id,
+      nowIso()
+    );
+  }
+
   return { status: 'ok', login: user.login };
+}
+
+function linkInstructionsText() {
+  return (
+    'Чтобы привязать Telegram к аккаунту на сайте:\n\n' +
+    '1. Зайдите на сайт и откройте личный кабинет.\n' +
+    '2. Найдите поле «Телеграм» и нажмите «Привязать».\n' +
+    '3. Откроется диплинк сюда, в бота, с одноразовым кодом — просто перейдите по нему ' +
+    '(или отправьте код вручную командой /start &lt;код&gt;).\n\n' +
+    '⚠️ Привязка постоянная: один Telegram-аккаунт можно привязать только к одному ' +
+    'аккаунту на сайте, и это нельзя изменить даже после отвязки.'
+  );
+}
+
+function supportText() {
+  return (
+    `По всем вопросам поддержки пишите: @${SUPPORT_USERNAME}\n\n` +
+    'Перед тем как что-либо оплачивать или передавать данные — рекомендуем проверить ' +
+    'аккаунт поддержки на nometa.xyz, чтобы убедиться, что он не засвечен в скам-базах.'
+  );
+}
+
+function buyText() {
+  return (
+    'Купить клиент можно на нашей странице на FunPay:\n' +
+    FUNPAY_URL
+  );
 }
 
 function handleStart(message, payload) {
@@ -90,11 +157,7 @@ function handleStart(message, payload) {
   const fromUsername = message.from.username || null;
 
   if (!payload) {
-    return sendMessage(
-      chatId,
-      'Привет! Чтобы привязать Telegram к аккаунту на сайте, зайдите в личный кабинет ' +
-        'и нажмите «Привязать» — оттуда откроется ссылка сюда с кодом.'
-    );
+    return sendMessage(chatId, `Привет! 👋\n\n${linkInstructionsText()}`);
   }
 
   const code = payload.trim().toUpperCase();
@@ -107,6 +170,13 @@ function handleStart(message, payload) {
       return sendMessage(chatId, 'Этот код уже использован. Получите новый в личном кабинете на сайте.');
     case 'expired':
       return sendMessage(chatId, 'Срок действия кода истёк (коды живут 10 минут). Получите новый в личном кабинете на сайте.');
+    case 'locked':
+      return sendMessage(
+        chatId,
+        `Этот Telegram уже был привязан к аккаунту <b>${result.lockedLogin}</b> ранее. ` +
+          'Привязка одноразовая и постоянная — привязать этот Telegram к другому аккаунту нельзя, ' +
+          `даже если отвязать его от «${result.lockedLogin}». Обратитесь в поддержку (${BTN_SUPPORT}), если это ошибка.`
+      );
     case 'conflict':
       return sendMessage(
         chatId,
@@ -123,11 +193,19 @@ function handleStart(message, payload) {
 }
 
 function handleOther(message) {
-  return sendMessage(
-    message.chat.id,
-    'Чтобы привязать аккаунт, нажмите «Привязать Telegram» в личном кабинете на сайте — ' +
-      'оттуда придёте сюда с готовой ссылкой.'
-  );
+  const text = (message.text || '').trim();
+
+  if (text === BTN_LINK) {
+    return sendMessage(message.chat.id, linkInstructionsText());
+  }
+  if (text === BTN_SUPPORT) {
+    return sendMessage(message.chat.id, supportText());
+  }
+  if (text === BTN_BUY) {
+    return sendMessage(message.chat.id, buyText());
+  }
+
+  return sendMessage(message.chat.id, 'Выберите действие на клавиатуре ниже 👇');
 }
 
 function handleUpdate(update) {

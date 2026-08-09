@@ -66,6 +66,26 @@ db.exec(`
     used_by         INTEGER,
     used_at         TEXT
   );
+
+  -- Постоянная запись "какой Telegram к какому аккаунту привязывался первым".
+  -- В отличие от users.telegram_chat_id (который обнуляется при отвязке),
+  -- эта таблица никогда не чистится — так один и тот же Telegram-аккаунт
+  -- нельзя привязать к другому сайтовому аккаунту даже после отвязки.
+  CREATE TABLE IF NOT EXISTS telegram_bindings (
+    telegram_chat_id INTEGER PRIMARY KEY,
+    user_id          INTEGER NOT NULL,
+    linked_at        TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+`);
+
+// Подстраховка для уже существующих (до этого изменения) привязок: если
+// у аккаунта прямо сейчас есть активный telegram_chat_id, но постоянной
+// записи о нём ещё нет — создаём её, чтобы старые привязки тоже стали
+// постоянными и не обошли новое правило.
+db.exec(`
+  INSERT OR IGNORE INTO telegram_bindings (telegram_chat_id, user_id, linked_at)
+  SELECT telegram_chat_id, id, created_at FROM users WHERE telegram_chat_id IS NOT NULL;
 `);
 
 // Seed a handful of demo activation keys, once.
