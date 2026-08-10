@@ -817,6 +817,9 @@ main{
 .theme-switch-btn:hover{ color:var(--text); border-color:var(--accent-line); background:rgba(255,255,255,.04); }
 .theme-switch-btn:active{ transform:translateY(1px); }
 
+.audio-toggle-btn.is-muted{ color:var(--text-faint); }
+.audio-toggle-btn svg{ pointer-events:none; }
+
 .theme-switch-menu{
   position:absolute;
   top:calc(100% + 12px);
