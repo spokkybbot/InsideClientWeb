@@ -45,8 +45,8 @@ const PLANS = [
     icon: 'chat',
     price: 50,
     category: 'other',
-    name: { RU: 'Доступ к Боту', EN: 'Bot access' },
-    desc: { RU: 'Открывает функции Telegram-бота', EN: 'Unlocks the Telegram bot features' },
+    name: { RU: 'Доступ к Spooky Events', EN: 'Spooky Events access' },
+    desc: { RU: 'Открывает @Sp00kyEventsBot — требуется привязанный Telegram', EN: 'Unlocks @Sp00kyEventsBot — requires a linked Telegram account' },
   },
 ];
 

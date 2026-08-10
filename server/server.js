@@ -24,6 +24,12 @@ const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || 'InsideClientBot';
 // реальной оплаты.
 const FUNPAY_URL = process.env.FUNPAY_URL || 'https://funpay.com/';
 
+// Общий секрет для внутреннего эндпоинта /api/internal/spooky-access —
+// им пользуется отдельный процесс Spooky Events bot (другой Railway-сервис),
+// чтобы на каждый /start проверять, куплен ли доступ. Обязательно задать
+// в Railway Variables (SPOOKY_INTERNAL_SECRET) одинаковым на обоих сервисах.
+const SPOOKY_INTERNAL_SECRET = process.env.SPOOKY_INTERNAL_SECRET || '';
+
 // Same list db.js applies at boot — re-checked on every register/login too,
 // so granting admin to a login that doesn't have an account yet (or wasn't
 // in ADMIN_LOGINS when the server last started) doesn't need a restart.
@@ -471,7 +477,11 @@ async function handleBuy(req, res) {
   const user = requireAuth(req, res);
   if (!user) return;
 
-  // Привязка Telegram больше не обязательна для покупки.
+  // Привязка Telegram больше не обязательна для покупки — ЗА ИСКЛЮЧЕНИЕМ
+  // тарифа «bot» (доступ к Spooky Events bot): этот бот проверяет доступ
+  // по telegram_chat_id, поэтому без привязки выданный доступ никуда не
+  // применить. Проверяем это здесь же, чтобы не отправлять человека на
+  // FunPay покупать то, чем он пока не сможет воспользоваться.
 
   let body;
   try {
@@ -481,6 +491,14 @@ async function handleBuy(req, res) {
   }
 
   const plan = String(body.plan || '');
+
+  if (plan === 'bot' && !user.telegram_chat_id) {
+    return fail(
+      res,
+      409,
+      'Сначала привяжите Telegram в личном кабинете — доступ к Spooky Events выдаётся именно на привязанный аккаунт.'
+    );
+  }
 
   if (PLAN_LINKS[plan]) {
     // Реальной оплаты пока нет — вместо мгновенной "фейковой" покупки
@@ -531,6 +549,16 @@ async function handleKeyActivate(req, res) {
 
   const rewardType = row.reward_type || 'subscription';
   let productLabel = row.product;
+
+  if (rewardType === 'bot_access' && !user.telegram_chat_id) {
+    // Ключ остаётся неактивированным — пользователь может привязать
+    // Telegram и ввести тот же ключ ещё раз.
+    return fail(
+      res,
+      409,
+      'Сначала привяжите Telegram в личном кабинете — доступ к Spooky Events выдаётся именно на привязанный аккаунт.'
+    );
+  }
 
   if (rewardType === 'hwid_reset') {
     db.prepare('UPDATE users SET hwid = NULL WHERE id = ?').run(user.id);
@@ -822,6 +850,46 @@ async function handleAdminCreateKey(req, res) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Внутреннее API — для второго процесса (Spooky Events bot, Python).     */
+/* Это НЕ публичный маршрут: требует общий секрет в заголовке и не должен */
+/* палиться на фронте/в js/api.js.                                        */
+/* ---------------------------------------------------------------------- */
+
+function timingSafeEqualStr(a, b) {
+  const bufA = Buffer.from(String(a));
+  const bufB = Buffer.from(String(b));
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+function handleSpookyAccessCheck(req, res, url) {
+  if (!SPOOKY_INTERNAL_SECRET) {
+    // Секрет не настроен на сайте — по умолчанию отказываем всем, чтобы
+    // не открыть эндпоинт без защиты, если переменную забыли задать.
+    return fail(res, 503, 'Внутренний секрет не настроен.');
+  }
+
+  const provided = req.headers['x-internal-secret'];
+  if (!provided || !timingSafeEqualStr(provided, SPOOKY_INTERNAL_SECRET)) {
+    return fail(res, 401, 'Неверный внутренний секрет.');
+  }
+
+  const chatIdRaw = url.searchParams.get('chat_id');
+  if (!chatIdRaw || !/^-?\d+$/.test(chatIdRaw)) {
+    return fail(res, 400, 'Некорректный chat_id.');
+  }
+  const chatId = Number(chatIdRaw);
+
+  // Смотрим по текущей привязке (users.telegram_chat_id), а не по
+  // постоянной telegram_bindings — если юзер отвязал Telegram, доступ
+  // из Spooky-бота тоже должен пропасть, даже если bot_access всё ещё 1.
+  const user = db.prepare('SELECT bot_access, banned FROM users WHERE telegram_chat_id = ?').get(chatId);
+
+  const access = Boolean(user && user.bot_access && !user.banned);
+  sendJson(res, 200, { access });
+}
+
+/* ---------------------------------------------------------------------- */
 /* Static file serving                                                    */
 /* ---------------------------------------------------------------------- */
 
@@ -878,6 +946,7 @@ const API_ROUTES = {
   'POST /api/admin/ban': handleAdminBan,
   'POST /api/admin/subscription/revoke': handleAdminRevokeSubscription,
   'POST /api/admin/keys/create': handleAdminCreateKey,
+  'GET /api/internal/spooky-access': handleSpookyAccessCheck,
 };
 
 const server = http.createServer((req, res) => {
