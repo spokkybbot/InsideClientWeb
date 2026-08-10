@@ -185,4 +185,46 @@ if (adminLogins.length) {
   );
 }
 
+/* ---------------------------------------------------------------------- */
+/* Тикеты поддержки (бот).                                                */
+/* ---------------------------------------------------------------------- */
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tickets (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id     INTEGER NOT NULL,
+    username    TEXT,
+    category    TEXT NOT NULL,
+    status      TEXT NOT NULL DEFAULT 'open',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL,
+    closed_at   TEXT,
+    closed_by   TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_tickets_chat_status ON tickets(chat_id, status);
+  CREATE INDEX IF NOT EXISTS idx_tickets_status_updated ON tickets(status, updated_at);
+
+  CREATE TABLE IF NOT EXISTS ticket_messages (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    ticket_id      INTEGER NOT NULL,
+    from_moderator INTEGER NOT NULL DEFAULT 0,
+    author         TEXT,
+    text           TEXT NOT NULL,
+    created_at     TEXT NOT NULL,
+    FOREIGN KEY(ticket_id) REFERENCES tickets(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_ticket_messages_ticket ON ticket_messages(ticket_id);
+
+  -- Telegram chat_id известных модераторов поддержки (username берутся из
+  -- переменной окружения MODERATOR_USERNAMES, а chat_id узнаём автоматически,
+  -- как только модератор первый раз что-то напишет боту).
+  CREATE TABLE IF NOT EXISTS bot_moderators (
+    chat_id    INTEGER PRIMARY KEY,
+    username   TEXT,
+    updated_at TEXT NOT NULL
+  );
+`);
+
 module.exports = db;
