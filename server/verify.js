@@ -163,18 +163,16 @@ async function handleVerify(req, res) {
     return sendJson(res, 200, { status: 'reject', message: 'Аккаунт заблокирован.' });
   }
 
-  // Проверяем, есть ли активная подписка
+  // Единственный критерий доступа — активная подписка (subscription_until).
+  // Наличие записей в purchases намеренно НЕ проверяется: подписка могла
+  // быть снята администратором, и тогда клиент должен получить REJECT
+  // вне зависимости от истории покупок.
   const hasSubscription = user.subscription_until &&
     new Date(user.subscription_until).getTime() > Date.now();
 
-  // Проверяем, есть ли покупка клиента (не сброс HWID, не бот)
-  const clientPurchase = db.prepare(
-    `SELECT 1 FROM purchases WHERE user_id = ? AND product != 'Сброс HWID' AND product != 'Доступ к боту' LIMIT 1`
-  ).get(user.id);
-
-  if (!hasSubscription && !clientPurchase) {
+  if (!hasSubscription) {
     logAttempt(hwid, clientIp, realIp, 'no_license', user.id);
-    return sendJson(res, 200, { status: 'reject', message: 'Лицензия истекла или не найдена.' });
+    return sendJson(res, 200, { status: 'reject', message: 'Подписка истекла или была отозвана.' });
   }
 
   // Успех — обновляем last_verify_ip и логируем
