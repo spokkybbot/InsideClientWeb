@@ -9,6 +9,7 @@ const { URL } = require('url');
 const db = require('./db');
 const { hashPassword, verifyPassword, newToken, newLinkCode } = require('./auth-utils');
 const { handleVerify } = require('./verify');
+const { handleStatus } = require('./status');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || 3000;
@@ -1068,12 +1069,22 @@ const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const key = `${req.method} ${url.pathname}`;
 
-  // /api/verify обрабатывается отдельным модулем (rate-limit + CORS)
+  // /api/verify и /api/status — отдельные модули (rate-limit + CORS)
   if (url.pathname === '/api/verify') {
     return Promise.resolve(handleVerify(req, res)).catch((err) => {
       console.error('[verify]', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+
+  if (url.pathname === '/api/status') {
+    return Promise.resolve(handleStatus(req, res)).catch((err) => {
+      console.error('[status]', err);
+      // При ошибке сервера НЕ возвращаем expired — клиент не должен
+      // закрыться из-за временного падения сервера. Возвращаем ok.
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ action: 'ok', secondsLeft: 9999 }));
     });
   }
 
