@@ -34,6 +34,53 @@
         <div id="admin-search-result"></div>
       </section>
 
+      <!-- HWID Management Section -->
+      <section class="admin-section reveal">
+        <h2 class="admin-section-title">Управление HWID</h2>
+        <p class="admin-section-hint">Просмотр и редактирование HWID пользователей. HWID привязывается к аккаунту при первом входе клиента или вручную здесь.</p>
+
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <input type="text" id="hwid-search" class="dash-item-input" placeholder="Поиск по UID / логину / HWID" style="flex:1">
+          <button type="button" class="btn btn-primary" id="hwid-load-btn">🔄 Обновить</button>
+        </div>
+
+        <div id="hwid-users-table"><p style="color:var(--text-muted)">Нажмите «Обновить», чтобы загрузить список.</p></div>
+
+        <!-- Inline form для редактирования HWID -->
+        <form id="hwid-set-form" style="display:none;margin-top:16px;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card)">
+          <div class="hwid-form-target" style="font-weight:600;margin-bottom:10px"></div>
+          <label class="admin-field">
+            <span>SHA-256 HWID (64 hex-символа)</span>
+            <input type="text" name="hwid" class="dash-item-input" placeholder="a1b2c3...64символа" maxlength="64" style="font-family:monospace">
+          </label>
+          <input type="hidden" name="uid">
+          <div style="display:flex;gap:8px;margin-top:8px">
+            <button type="submit" class="btn btn-primary">💾 Сохранить</button>
+            <button type="button" class="btn btn-outline hwid-form-cancel">Отмена</button>
+          </div>
+        </form>
+        <div id="hwid-set-result" style="margin-top:8px;font-size:13px"></div>
+      </section>
+
+      <!-- Verify Log Section -->
+      <section class="admin-section reveal">
+        <h2 class="admin-section-title">Лог верификаций (/api/verify)</h2>
+        <p class="admin-section-hint">Все попытки входа Minecraft-клиентов через API.</p>
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <select id="verify-log-filter" class="dash-item-input" style="max-width:200px">
+            <option value="">Все результаты</option>
+            <option value="access">✅ access</option>
+            <option value="not_found">❌ not_found</option>
+            <option value="no_license">⛔ no_license</option>
+            <option value="banned">🚫 banned</option>
+            <option value="rate_limited">⏱️ rate_limited</option>
+            <option value="invalid_hwid">⚠️ invalid_hwid</option>
+          </select>
+          <button type="button" class="btn btn-primary" id="verify-log-load-btn">🔄 Обновить лог</button>
+        </div>
+        <div id="verify-log-table"><p style="color:var(--text-muted)">Нажмите «Обновить лог».</p></div>
+      </section>
+
       <section class="admin-section reveal">
         <h2 class="admin-section-title">Создание ключа</h2>
         <form id="admin-key-form" class="admin-key-form">
@@ -81,5 +128,6 @@
   <script src="js/api.js"></script>
   <script src="js/session.js"></script>
   <script src="js/admin.js"></script>
+  <script src="js/admin-hwid.js"></script>
 </body>
 </html>

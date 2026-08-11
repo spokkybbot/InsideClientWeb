@@ -227,4 +227,25 @@ db.exec(`
   );
 `);
 
+/* ---------------------------------------------------------------------- */
+/* HWID-верификация: таблица логов                                         */
+/* ---------------------------------------------------------------------- */
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS verify_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    hwid       TEXT,
+    client_ip  TEXT,
+    server_ip  TEXT,
+    result     TEXT NOT NULL,
+    user_id    INTEGER,
+    created_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_verify_log_hwid       ON verify_log(hwid);
+  CREATE INDEX IF NOT EXISTS idx_verify_log_result     ON verify_log(result);
+  CREATE INDEX IF NOT EXISTS idx_verify_log_created    ON verify_log(created_at);
+  CREATE INDEX IF NOT EXISTS idx_verify_log_user       ON verify_log(user_id);
+`);
+
 module.exports = db;

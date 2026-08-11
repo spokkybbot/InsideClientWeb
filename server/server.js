@@ -8,6 +8,7 @@ const { URL } = require('url');
 
 const db = require('./db');
 const { hashPassword, verifyPassword, newToken, newLinkCode } = require('./auth-utils');
+const { handleVerify } = require('./verify');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || 3000;
@@ -850,6 +851,115 @@ async function handleAdminCreateKey(req, res) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Admin — HWID management & verify logs                                   */
+/* ---------------------------------------------------------------------- */
+
+/** GET /api/admin/users — список всех пользователей (для HWID-панели) */
+function handleAdminUserList(req, res, url) {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  const page  = Math.max(1, parseInt(url.searchParams.get('page')  || '1', 10));
+  const limit = Math.min(100, Math.max(1, parseInt(url.searchParams.get('limit') || '50', 10)));
+  const offset = (page - 1) * limit;
+
+  const total = db.prepare('SELECT COUNT(*) AS c FROM users').get().c;
+  const users = db.prepare(
+    'SELECT id, login, hwid, is_admin, banned, created_at, subscription_until FROM users ORDER BY id DESC LIMIT ? OFFSET ?'
+  ).all(limit, offset);
+
+  sendJson(res, 200, {
+    total,
+    page,
+    limit,
+    users: users.map((u) => ({
+      uid: u.id,
+      login: u.login,
+      hwid: u.hwid || null,
+      isAdmin: Boolean(u.is_admin),
+      banned: Boolean(u.banned),
+      subscriptionUntil: u.subscription_until || null,
+      createdAt: formatDate(u.created_at),
+    })),
+  });
+}
+
+/** POST /api/admin/hwid/set — устанавливает HWID пользователю */
+async function handleAdminHwidSet(req, res) {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  let body;
+  try { body = await readJsonBody(req); } catch (e) { return fail(res, 400, 'Некорректный запрос.'); }
+
+  const uid  = Number(body.uid);
+  const hwid = String(body.hwid || '').trim().toLowerCase();
+
+  const HWID_RE = /^[0-9a-fA-F]{64}$/;
+  if (hwid && !HWID_RE.test(hwid)) {
+    return fail(res, 400, 'HWID должен быть SHA-256 хешем (64 hex-символа).');
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+  if (!user) return fail(res, 404, 'Пользователь не найден.');
+
+  if (hwid) {
+    const conflict = db.prepare('SELECT id FROM users WHERE hwid = ? AND id != ?').get(hwid, uid);
+    if (conflict) return fail(res, 409, `HWID уже привязан к пользователю #${conflict.id}.`);
+  }
+
+  db.prepare('UPDATE users SET hwid = ? WHERE id = ?').run(hwid || null, uid);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+  sendJson(res, 200, { user: userToDto(fresh) });
+}
+
+/** DELETE /api/admin/hwid/clear — сбрасывает HWID */
+async function handleAdminHwidClear(req, res) {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  let body;
+  try { body = await readJsonBody(req); } catch (e) { return fail(res, 400, 'Некорректный запрос.'); }
+
+  const uid = Number(body.uid);
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+  if (!user) return fail(res, 404, 'Пользователь не найден.');
+
+  db.prepare('UPDATE users SET hwid = NULL WHERE id = ?').run(uid);
+  const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(uid);
+  sendJson(res, 200, { user: userToDto(fresh) });
+}
+
+/** GET /api/admin/verify-log — последние попытки верификации */
+function handleAdminVerifyLog(req, res, url) {
+  const admin = requireAdmin(req, res);
+  if (!admin) return;
+
+  const limit  = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit')  || '100', 10)));
+  const result = url.searchParams.get('result') || null;
+
+  const rows = result
+    ? db.prepare(
+        'SELECT vl.*, u.login FROM verify_log vl LEFT JOIN users u ON u.id = vl.user_id WHERE vl.result = ? ORDER BY vl.id DESC LIMIT ?'
+      ).all(result, limit)
+    : db.prepare(
+        'SELECT vl.*, u.login FROM verify_log vl LEFT JOIN users u ON u.id = vl.user_id ORDER BY vl.id DESC LIMIT ?'
+      ).all(limit);
+
+  sendJson(res, 200, {
+    logs: rows.map((r) => ({
+      id: r.id,
+      hwid: r.hwid ? r.hwid.slice(0, 12) + '…' : null,
+      clientIp: r.client_ip,
+      result: r.result,
+      uid: r.user_id,
+      login: r.login || null,
+      createdAt: formatDate(r.created_at),
+    })),
+  });
+}
+
+/* ---------------------------------------------------------------------- */
 /* Внутреннее API — для второго процесса (Spooky Events bot, Python).     */
 /* Это НЕ публичный маршрут: требует общий секрет в заголовке и не должен */
 /* палиться на фронте/в js/api.js.                                        */
@@ -947,11 +1057,25 @@ const API_ROUTES = {
   'POST /api/admin/subscription/revoke': handleAdminRevokeSubscription,
   'POST /api/admin/keys/create': handleAdminCreateKey,
   'GET /api/internal/spooky-access': handleSpookyAccessCheck,
+  // HWID management (admin)
+  'GET /api/admin/users':        handleAdminUserList,
+  'POST /api/admin/hwid/set':    handleAdminHwidSet,
+  'DELETE /api/admin/hwid/clear': handleAdminHwidClear,
+  'GET /api/admin/verify-log':   handleAdminVerifyLog,
 };
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const key = `${req.method} ${url.pathname}`;
+
+  // /api/verify обрабатывается отдельным модулем (rate-limit + CORS)
+  if (url.pathname === '/api/verify') {
+    return Promise.resolve(handleVerify(req, res)).catch((err) => {
+      console.error('[verify]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
 
   if (url.pathname.startsWith('/api/')) {
     const handler = API_ROUTES[key];
