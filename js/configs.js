@@ -43,6 +43,8 @@ function icConfigEditorHtml(){
   const escName = (icConfigsEditing.name || '').replace(/"/g, '&quot;');
   const escContent = (icConfigsEditing.content || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const hasContent = !!(icConfigsEditing.content || '').length;
+  const statusText = hasContent ? icT('dash.configs.fileLoaded') : icT('dash.configs.fileNotLoaded');
   return `
     <div class="dash-config-editor reveal" id="dash-config-editor">
       <div class="dash-config-editor-row">
@@ -51,10 +53,11 @@ function icConfigEditorHtml(){
       </div>
       <div class="dash-config-upload-row">
         <button type="button" class="btn btn-outline" id="dash-config-upload-btn">${ICONS.file}<span>${icT('dash.configs.uploadFile')}</span></button>
-        <input type="file" id="dash-config-upload-input" class="dash-avatar-input" hidden>
+        <input type="file" id="dash-config-upload-input" class="dash-avatar-input" accept=".txt,text/plain" hidden>
+        <span class="dash-config-upload-status" id="dash-config-upload-status">${statusText}</span>
       </div>
-      <textarea class="dash-config-textarea" id="dash-config-content"
-                placeholder="${icT('dash.configs.contentPlaceholder')}" spellcheck="false">${escContent}</textarea>
+      <p class="dash-configs-hint">${icT('dash.configs.txtOnlyHint')}</p>
+      <input type="hidden" id="dash-config-content" value="${escContent}">
       <div class="dash-config-editor-actions">
         <button type="button" class="btn btn-primary" id="dash-config-save">${ICONS.check}<span>${icT('dash.configs.save')}</span></button>
         <button type="button" class="btn btn-ghost" id="dash-config-cancel">${icT('dash.configs.cancel')}</button>
@@ -86,6 +89,12 @@ function icConfigsRender(){
 
 function icReadConfigFile(file){
   return new Promise((resolve, reject) => {
+    const nameOk = /\.txt$/i.test(file.name || '');
+    const typeOk = !file.type || file.type === 'text/plain';
+    if(!nameOk || !typeOk){
+      reject(new Error(icT('dash.configs.uploadWrongType')));
+      return;
+    }
     if(file.size > IC_CONFIG_MAX_BYTES){
       reject(new Error(icT('dash.configs.uploadTooBig')));
       return;
@@ -150,6 +159,8 @@ function icWireConfigsActions(){
       const text = await icReadConfigFile(file);
       const contentBox = document.getElementById('dash-config-content');
       if(contentBox) contentBox.value = text;
+      const statusBox = document.getElementById('dash-config-upload-status');
+      if(statusBox) statusBox.textContent = icT('dash.configs.fileLoaded');
       const nameBox = document.getElementById('dash-config-name');
       if(nameBox && !nameBox.value.trim()){
         const base = file.name.replace(/\.[^.]+$/, '') || file.name;
@@ -163,6 +174,7 @@ function icWireConfigsActions(){
     const name = document.getElementById('dash-config-name')?.value.trim() || '';
     const content = document.getElementById('dash-config-content')?.value ?? '';
     if(!name){ icToast(icT('dash.configs.nameRequired')); return; }
+    if(!content){ icToast(icT('dash.configs.fileRequired')); return; }
 
     try {
       if(icConfigsEditing.id === null){

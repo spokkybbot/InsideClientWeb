@@ -1465,7 +1465,14 @@ main{
 
 .dash-config-upload-row{
   display:flex;
+  align-items:center;
+  gap:10px;
   margin-bottom:10px;
+}
+
+.dash-config-upload-status{
+  font-size:12px;
+  color:var(--text-faint);
 }
 
 .dash-configs .dash-section-title{
