@@ -13,6 +13,7 @@ function icDashInitials(login){
 function icDashGroupClass(group){
   if(group === 'Админ') return 'badge-admin';
   if(group === 'Пользователь') return 'badge-user';
+  if(group === 'Доступ к боту') return 'badge-bot';
   return 'badge-none';
 }
 
@@ -165,7 +166,7 @@ function icDashRender(){
 
   const purchasesValue = u.purchasesSummary === 'Нет покупок' ? icT('dash.value.noPurchases') : u.purchasesSummary;
   const telegramValue = u.telegramLinked ? (u.telegram ? '@' + u.telegram : linkedLabel) : notLinkedLabel;
-  const hasClient = u.purchasesSummary !== 'Нет покупок';
+  const hasClient = u.hasClient;
 
   const subscriptionValue = (u.subscriptionActive && u.subscriptionUntilFull)
     ? `${icT('dash.value.activeUntil')} ${u.subscriptionUntilFull}`
@@ -204,7 +205,7 @@ function icDashRender(){
   actions.innerHTML = `
     <button type="button" class="btn btn-outline" id="dash-purchases">${ICONS.cart}<span data-i18n="dash.action.purchases"></span></button>
     <button type="button" class="btn btn-outline" id="dash-activate">${ICONS.key}<span data-i18n="dash.action.activate"></span></button>
-    <button type="button" class="btn btn-outline" id="dash-configs-page">${ICONS.cloud}<span data-i18n="dash.action.configs"></span></button>
+    ${hasClient ? `<button type="button" class="btn btn-outline" id="dash-configs-page">${ICONS.cloud}<span data-i18n="dash.action.configs"></span></button>` : ''}
     ${hasClient ? `<button type="button" class="btn btn-white" id="dash-download">${ICONS.download}<span data-i18n="dash.action.download"></span></button>` : ''}
     <button type="button" class="btn btn-outline" id="dash-password">${ICONS.lock}<span data-i18n="dash.action.password"></span></button>
     <button type="button" class="btn btn-ghost" id="dash-logout">${ICONS.logout}<span data-i18n="dash.action.logout"></span></button>

@@ -1301,6 +1301,7 @@ main{
 
 .badge-admin{ border-color:var(--accent-line); background:var(--accent-dim); color:var(--accent-2); }
 .badge-user{ border-color:rgba(120,220,150,.4); background:rgba(120,220,150,.12); color:#a3f0bc; }
+.badge-bot{ border-color:rgba(120,170,255,.4); background:rgba(120,170,255,.12); color:#a9c4ff; }
 .badge-none{ color:var(--text-faint); }
 .badge-sub{ border-color:var(--border-strong); color:var(--text-dim); }
 .badge-banned{ border-color:rgba(255,90,100,.5); background:rgba(255,90,100,.14); color:#ffb0b8; }

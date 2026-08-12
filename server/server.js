@@ -202,12 +202,31 @@ function isSubscriptionActive(user) {
   return Boolean(user.subscription_until && new Date(user.subscription_until).getTime() > Date.now());
 }
 
-// Rank/group. Admin is a manually-assigned flag and always wins; otherwise
-// the existing "Пользователь"/"Нету" logic (derived from ownership) applies,
-// now also counting an active timed subscription as ownership.
+// "HWID reset" and standalone "bot access" purchases don't count as owning
+// the client — they're separate add-on services/ranks, not the client
+// itself. Shared between the group/DTO logic below and the ownership gate
+// used to protect the cloud-configs management API.
+const NON_CLIENT_PRODUCTS = ['Сброс HWID', 'Доступ к боту'];
+
+function hasClientAccess(user) {
+  if (user.is_admin) return true;
+  if (isSubscriptionActive(user)) return true;
+  const placeholders = NON_CLIENT_PRODUCTS.map(() => '?').join(', ');
+  const row = db
+    .prepare(`SELECT 1 FROM purchases WHERE user_id = ? AND product NOT IN (${placeholders}) LIMIT 1`)
+    .get(user.id, ...NON_CLIENT_PRODUCTS);
+  return Boolean(row);
+}
+
+// Rank/group. Admin is a manually-assigned flag and always wins. Actual
+// client ownership (a paid/keyed subscription, or a standing client
+// purchase) grants "Пользователь" and supersedes everything else. Below
+// that, a standalone "Доступ к боту" purchase grants its own distinct
+// rank — it must NOT be treated as client ownership.
 function computeGroup(user, clientPurchases) {
   if (user.is_admin) return 'Админ';
   if (isSubscriptionActive(user) || clientPurchases.length) return 'Пользователь';
+  if (user.bot_access) return 'Доступ к боту';
   return 'Нету';
 }
 
@@ -216,8 +235,11 @@ function userToDto(user) {
     .prepare('SELECT product, source, purchased_at FROM purchases WHERE user_id = ? ORDER BY purchased_at DESC')
     .all(user.id);
 
-  // "HWID reset" service purchases don't count as owning the client.
-  const clientPurchases = purchases.filter((p) => p.product !== 'Сброс HWID');
+  // "HWID reset" and standalone "bot access" purchases don't count as
+  // owning the client — they're separate add-on services/ranks, not the
+  // client itself. Counting them here was the bug that opened up cloud
+  // configs and the launcher download after just buying bot access.
+  const clientPurchases = purchases.filter((p) => !NON_CLIENT_PRODUCTS.includes(p.product));
 
   return {
     uid: user.id,
@@ -232,6 +254,7 @@ function userToDto(user) {
     telegramLinked: Boolean(user.telegram_chat_id),
     avatar: user.avatar || null,
     botAccess: Boolean(user.bot_access),
+    hasClient: hasClientAccess(user),
     subscriptionActive: isSubscriptionActive(user),
     subscriptionUntil: user.subscription_until ? formatDate(user.subscription_until) : null,
     subscriptionUntilFull: user.subscription_until ? formatDateFull(user.subscription_until) : null,
@@ -503,8 +526,18 @@ function validateConfigContent(content) {
   return null;
 }
 
-function handleConfigsList(req, res) {
+function requireClientOwner(req, res) {
   const user = requireAuth(req, res);
+  if (!user) return null;
+  if (!hasClientAccess(user)) {
+    fail(res, 403, 'Облачные конфиги доступны только владельцам клиента.');
+    return null;
+  }
+  return user;
+}
+
+function handleConfigsList(req, res) {
+  const user = requireClientOwner(req, res);
   if (!user) return;
 
   const rows = db.prepare(
@@ -517,7 +550,7 @@ function handleConfigsList(req, res) {
 /** GET /api/configs/get?id=... — единственный маршрут, отдающий контент
  *  (список выше его намеренно не включает — пресеты могут быть увесистыми). */
 function handleConfigsGet(req, res, url) {
-  const user = requireAuth(req, res);
+  const user = requireClientOwner(req, res);
   if (!user) return;
 
   const id = Number(url.searchParams.get('id'));
@@ -528,7 +561,7 @@ function handleConfigsGet(req, res, url) {
 }
 
 async function handleConfigsCreate(req, res) {
-  const user = requireAuth(req, res);
+  const user = requireClientOwner(req, res);
   if (!user) return;
 
   let body;
@@ -565,7 +598,7 @@ async function handleConfigsCreate(req, res) {
 }
 
 async function handleConfigsUpdate(req, res) {
-  const user = requireAuth(req, res);
+  const user = requireClientOwner(req, res);
   if (!user) return;
 
   let body;
@@ -605,7 +638,7 @@ async function handleConfigsUpdate(req, res) {
 }
 
 async function handleConfigsDelete(req, res) {
-  const user = requireAuth(req, res);
+  const user = requireClientOwner(req, res);
   if (!user) return;
 
   let body;

@@ -42,6 +42,10 @@
       window.location.href = 'dashboard.html';
       return;
     }
+    if (page === 'configs' && !user.hasClient) {
+      window.location.href = 'dashboard.html';
+      return;
+    }
   } else if (page === 'dashboard' || page === 'password' || page === 'admin' || page === 'configs') {
     window.location.href = 'login.html';
     return;
