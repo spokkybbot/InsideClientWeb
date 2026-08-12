@@ -1,10 +1,32 @@
 /* Personal cabinet — renders real account data fetched from /api/me and
-   wires each row's action to the backend. */
+   wires each row's action to the backend. Supports 4 interchangeable
+   layouts ("current" + 3 rework concepts) picked via the switcher at the
+   top of the page and remembered per-browser in localStorage. */
 
 let icDashUser = null;
 let icDashRendering = false;
 let icTelegramPending = null; // { code, deepLink, expiresAt }
 let icTelegramPollTimer = null;
+
+const IC_DASH_VARIANTS = ['current', 'a', 'b', 'c'];
+const IC_DASH_VARIANT_KEY = 'ic_dash_variant';
+
+function icDashGetVariant(){
+  try {
+    const saved = localStorage.getItem(IC_DASH_VARIANT_KEY);
+    if(IC_DASH_VARIANTS.includes(saved)) return saved;
+  } catch(e){ /* ignore */ }
+  return 'current';
+}
+
+function icDashSetVariant(v){
+  if(!IC_DASH_VARIANTS.includes(v)) return;
+  icDashVariant = v;
+  try { localStorage.setItem(IC_DASH_VARIANT_KEY, v); } catch(e){ /* ignore */ }
+  icDashRender();
+}
+
+let icDashVariant = icDashGetVariant();
 
 function icDashInitials(login){
   return (login || '?').trim().charAt(0).toUpperCase();
@@ -17,42 +39,257 @@ function icDashGroupClass(group){
   return 'badge-none';
 }
 
-function icDashRenderProfile(u){
-  const box = document.getElementById('dash-profile');
-  if(!box) return;
+/* ---- reusable building blocks, shared across all 4 variants ---- */
 
+function icDashBadgesHtml(u){
   const noneLabel = icT('dash.value.none');
   const groupLabel = u.group === 'Нету' ? noneLabel : u.group;
-
-  const badges = [
-    `<span class="dash-badge ${icDashGroupClass(u.group)}">${groupLabel}</span>`,
-  ];
+  const badges = [`<span class="dash-badge ${icDashGroupClass(u.group)}">${groupLabel}</span>`];
   if(u.subscriptionActive && u.subscriptionUntil){
     badges.push(`<span class="dash-badge badge-sub">${ICONS.clock}<span>до ${u.subscriptionUntil}</span></span>`);
   }
   if(u.banned){
     badges.push(`<span class="dash-badge badge-banned">Заблокирован</span>`);
   }
+  return badges.join('');
+}
 
+function icDashProfileBlockHtml(u, compact){
   const avatarInner = u.avatar
     ? `<img src="${u.avatar}" alt="" class="dash-profile-avatar-img">`
     : icDashInitials(u.login);
+  const avatarSizeClass = compact ? ' dash-profile-avatar-sm' : '';
 
-  box.innerHTML = `
+  return `
     <div class="dash-avatar-wrap">
-      <button type="button" class="dash-profile-avatar" id="dash-avatar-btn" title="${icT('dash.avatar.change')}">${avatarInner}<span class="dash-avatar-hint">${ICONS.camera}</span></button>
+      <button type="button" class="dash-profile-avatar${avatarSizeClass}" id="dash-avatar-btn" title="${icT('dash.avatar.change')}">${avatarInner}<span class="dash-avatar-hint">${ICONS.camera}</span></button>
       ${u.avatar ? `<button type="button" class="dash-avatar-remove" id="dash-avatar-remove" title="${icT('dash.avatar.remove')}">${ICONS.close}</button>` : ''}
       <input type="file" accept="image/png,image/jpeg,image/webp" id="dash-avatar-input" class="dash-avatar-input" hidden>
     </div>
-    <div class="dash-profile-info">
+    <div class="dash-profile-info${compact ? ' dash-profile-compact' : ''}">
       <span class="dash-profile-login">${u.login}</span>
       <span class="dash-profile-uid">UID ${u.uid}</span>
-      <div class="dash-profile-badges">${badges.join('')}</div>
+      <div class="dash-profile-badges">${icDashBadgesHtml(u)}</div>
     </div>
   `;
-
-  icWireAvatarUpload();
 }
+
+function icDashField(key, icon, value, extraHtml, wide){
+  return `
+    <div class="dash-item reveal${wide ? ' dash-item-wide' : ''}">
+      <span class="dash-item-icon">${ICONS[icon]}</span>
+      <span class="dash-item-body">
+        <span class="dash-item-label" data-i18n="dash.field.${key}"></span>
+        <span class="dash-item-value">${value}</span>
+      </span>
+      ${extraHtml || ''}
+    </div>
+  `;
+}
+
+function icDashSection(title){
+  return `<div class="dash-section-title reveal dash-item-wide">${title}</div>`;
+}
+
+function icDashPurchasesItem(purchasesValue){
+  return icDashField('purchases', 'cart', purchasesValue,
+    `<button type="button" class="btn btn-outline dash-item-action" id="dash-purchases-details">${ICONS.info}<span data-i18n="dash.row.details"></span></button>`, true);
+}
+
+function icDashTelegramItem(u, telegramValue){
+  return `<div class="dash-item reveal dash-item-wide has-panel" id="dash-telegram-item">
+    <span class="dash-item-icon">${ICONS.telegram}</span>
+    <span class="dash-item-body">
+      <span class="dash-item-label" data-i18n="dash.field.telegram"></span>
+      <span class="dash-item-value">${telegramValue}</span>
+    </span>
+    <button type="button" class="btn btn-outline dash-item-action" id="dash-telegram-toggle">${ICONS.link}<span data-i18n="${u.telegramLinked ? 'dash.row.unlink' : 'dash.row.link'}"></span></button>
+    <div class="dash-telegram-panel hidden" id="dash-telegram-panel">
+      <p data-i18n="dash.telegram.hint"></p>
+      <div class="dash-telegram-row">
+        <a href="#" target="_blank" rel="noopener" class="btn btn-primary" id="dash-telegram-open">${ICONS.telegram}<span data-i18n="dash.telegram.open"></span></a>
+        <span class="dash-telegram-code" id="dash-telegram-code"></span>
+      </div>
+      <p class="dash-telegram-status" id="dash-telegram-status"></p>
+    </div>
+  </div>`;
+}
+
+function icDashActionBtn(kind, u){
+  switch(kind){
+    case 'purchases':
+      return `<button type="button" class="btn btn-outline" id="dash-purchases">${ICONS.cart}<span data-i18n="dash.action.purchases"></span></button>`;
+    case 'activate':
+      return `<button type="button" class="btn btn-outline" id="dash-activate">${ICONS.key}<span data-i18n="dash.action.activate"></span></button>`;
+    case 'configs':
+      return u.hasClient ? `<button type="button" class="btn btn-outline" id="dash-configs-page">${ICONS.cloud}<span data-i18n="dash.action.configs"></span></button>` : '';
+    case 'download':
+      return u.hasClient ? `<button type="button" class="btn btn-white" id="dash-download">${ICONS.download}<span data-i18n="dash.action.download"></span></button>` : '';
+    case 'password':
+      return `<button type="button" class="btn btn-outline" id="dash-password">${ICONS.lock}<span data-i18n="dash.action.password"></span></button>`;
+    case 'logout':
+      return `<button type="button" class="btn btn-ghost" id="dash-logout">${ICONS.logout}<span data-i18n="dash.action.logout"></span></button>`;
+    default:
+      return '';
+  }
+}
+
+function icDashActionsHtml(u, kinds){
+  return kinds.map((k) => icDashActionBtn(k, u)).join('');
+}
+
+function icDashStatCard(icon, labelKey, value, id, asButton){
+  const tag = asButton ? 'button' : 'div';
+  const attrs = asButton ? `type="button" id="${id}"` : (id ? `id="${id}"` : '');
+  return `<${tag} class="dash-stat-card" ${attrs}>
+    <span class="dash-stat-icon">${ICONS[icon]}</span>
+    <span class="dash-stat-label" data-i18n="dash.field.${labelKey}"></span>
+    <span class="dash-stat-value">${value}</span>
+  </${tag}>`;
+}
+
+/* ---- variant switcher ---- */
+
+function icDashRenderSwitcher(){
+  const box = document.getElementById('dash-variant-switch');
+  if(!box) return;
+  const opts = [
+    ['current', 'dash.variant.current'],
+    ['a', 'dash.variant.a'],
+    ['b', 'dash.variant.b'],
+    ['c', 'dash.variant.c'],
+  ];
+  box.innerHTML = `
+    <span class="dash-variant-switch-label" data-i18n="dash.variant.label"></span>
+    <div class="dash-variant-switch-btns">
+      ${opts.map(([key, i18nKey]) => `<button type="button" class="dash-variant-btn${icDashVariant === key ? ' active' : ''}" data-variant="${key}" data-i18n="${i18nKey}"></button>`).join('')}
+    </div>
+  `;
+  box.querySelectorAll('.dash-variant-btn').forEach((btn) => {
+    btn.addEventListener('click', () => icDashSetVariant(btn.dataset.variant));
+  });
+}
+
+/* ---- variant A: profile header + metric cards + compact list ---- */
+
+function icDashVariantAHtml(u, ctx){
+  return `
+    <div class="dash-variant dash-variant-a">
+      <div class="dash-profile dash-a-profile reveal">
+        ${icDashProfileBlockHtml(u, false)}
+      </div>
+
+      <div class="dash-stat-grid reveal">
+        ${icDashStatCard('clock', 'subscription', ctx.subscriptionValue)}
+        ${icDashStatCard('cart', 'purchases', ctx.purchasesValue, 'dash-purchases-details', true)}
+        ${icDashStatCard('chat', 'botaccess', ctx.botAccessValue)}
+      </div>
+
+      <div class="dash-grid reveal">
+        ${icDashSection('Аккаунт')}
+        ${icDashField('regdate', 'calendar', u.regdate || '—')}
+        ${icDashField('lastlogin', 'clock', u.lastlogin || '—')}
+        ${icDashTelegramItem(u, ctx.telegramValue)}
+      </div>
+
+      <div class="dash-actions dash-a-actions reveal">
+        ${icDashActionsHtml(u, ['activate', 'configs', 'download', 'password', 'logout'])}
+      </div>
+    </div>
+  `;
+}
+
+/* ---- variant B: sidebar navigation + overview panel ---- */
+
+function icDashVariantBHtml(u, ctx){
+  return `
+    <div class="dash-variant dash-variant-b reveal">
+      <aside class="dash-b-nav">
+        <div class="dash-b-nav-profile">${icDashProfileBlockHtml(u, true)}</div>
+        <div class="dash-b-nav-list">
+          <span class="dash-b-nav-item active">${ICONS.spark}<span>Обзор</span></span>
+          <button type="button" class="dash-b-nav-item" id="dash-purchases-details">${ICONS.cart}<span data-i18n="dash.action.purchases"></span></button>
+          ${u.hasClient ? `<button type="button" class="dash-b-nav-item" id="dash-configs-page">${ICONS.cloud}<span data-i18n="dash.action.configs"></span></button>` : ''}
+          <button type="button" class="dash-b-nav-item" id="dash-password">${ICONS.lock}<span data-i18n="dash.action.password"></span></button>
+          <button type="button" class="dash-b-nav-item" id="dash-logout">${ICONS.logout}<span data-i18n="dash.action.logout"></span></button>
+        </div>
+      </aside>
+
+      <div class="dash-b-content">
+        <div class="dash-stat-grid dash-b-stats">
+          ${icDashStatCard('clock', 'subscription', ctx.subscriptionValue)}
+          ${icDashStatCard('chat', 'botaccess', ctx.botAccessValue)}
+        </div>
+
+        <div class="dash-grid">
+          ${icDashTelegramItem(u, ctx.telegramValue)}
+          ${icDashField('regdate', 'calendar', u.regdate || '—')}
+          ${icDashField('lastlogin', 'clock', u.lastlogin || '—')}
+        </div>
+
+        <div class="dash-actions dash-b-actions">
+          ${icDashActionsHtml(u, ['activate', 'download'])}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---- variant C: featured quick actions on top, compact list below ---- */
+
+function icDashVariantCHtml(u, ctx){
+  return `
+    <div class="dash-variant dash-variant-c">
+      <div class="dash-profile dash-c-profile reveal">
+        ${icDashProfileBlockHtml(u, true)}
+        <span class="dash-badge badge-sub dash-c-sub-badge">${ctx.subscriptionValue}</span>
+      </div>
+
+      <div class="dash-c-featured reveal">
+        ${icDashActionsHtml(u, ['download', 'activate', 'configs']).replace(/class="btn (btn-outline|btn-white)"/g, 'class="dash-c-featured-btn"')}
+      </div>
+
+      <div class="dash-grid reveal">
+        ${icDashPurchasesItem(ctx.purchasesValue)}
+        ${icDashField('botaccess', 'chat', ctx.botAccessValue, '', true)}
+        ${icDashTelegramItem(u, ctx.telegramValue)}
+        ${icDashField('lastlogin', 'clock', u.lastlogin || '—')}
+      </div>
+
+      <div class="dash-actions dash-c-actions reveal">
+        ${icDashActionsHtml(u, ['password', 'logout'])}
+      </div>
+    </div>
+  `;
+}
+
+/* ---- variant "current": the original two-column layout, unchanged ---- */
+
+function icDashCurrentHtml(u, ctx){
+  return `
+    <div class="dash-layout">
+      <aside class="dash-aside reveal">
+        <div class="dash-profile">${icDashProfileBlockHtml(u, false)}</div>
+        <div class="dash-actions">${icDashActionsHtml(u, ['purchases', 'activate', 'configs', 'download', 'password', 'logout'])}</div>
+      </aside>
+      <div class="dash-main">
+        <div class="dash-grid">
+          ${icDashSection('Аккаунт')}
+          ${icDashField('regdate', 'calendar', u.regdate || '—')}
+          ${icDashField('lastlogin', 'clock', u.lastlogin || '—')}
+
+          ${icDashSection('Подписка и доступ')}
+          ${icDashPurchasesItem(ctx.purchasesValue)}
+          ${icDashField('subscription', 'clock', ctx.subscriptionValue, '', true)}
+          ${icDashField('botaccess', 'chat', ctx.botAccessValue, '', true)}
+          ${icDashTelegramItem(u, ctx.telegramValue)}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---- avatar upload (unchanged logic, just re-renders the whole variant) ---- */
 
 const IC_AVATAR_SIZE = 256;
 const IC_AVATAR_MAX_BYTES = 850 * 1024;
@@ -116,7 +353,7 @@ function icWireAvatarUpload(){
       const data = await icApiPost('/api/me/avatar', { avatar: dataUrl });
       icDashUser = data.user;
       icToast(icT('dash.avatar.saved'));
-      icDashRenderProfile(icDashUser);
+      icDashRender();
     } catch (err) {
       icToast(err.message);
     }
@@ -127,90 +364,46 @@ function icWireAvatarUpload(){
       const data = await icApiDelete('/api/me/avatar');
       icDashUser = data.user;
       icToast(icT('dash.avatar.removed'));
-      icDashRenderProfile(icDashUser);
+      icDashRender();
     } catch (err) {
       icToast(err.message);
     }
   });
 }
 
-function icDashField(key, icon, value, extraHtml, wide){
-  return `
-    <div class="dash-item reveal${wide ? ' dash-item-wide' : ''}">
-      <span class="dash-item-icon">${ICONS[icon]}</span>
-      <span class="dash-item-body">
-        <span class="dash-item-label" data-i18n="dash.field.${key}"></span>
-        <span class="dash-item-value">${value}</span>
-      </span>
-      ${extraHtml || ''}
-    </div>
-  `;
-}
-
-function icDashSection(title){
-  return `<div class="dash-section-title reveal dash-item-wide">${title}</div>`;
-}
+/* ---- main render dispatch ---- */
 
 function icDashRender(){
-  const grid = document.getElementById('dash-grid');
-  const actions = document.getElementById('dash-actions');
-  if(!grid || !actions || !icDashUser) return;
+  const content = document.getElementById('dash-content');
+  if(!content || !icDashUser) return;
   icDashRendering = true;
   const u = icDashUser;
 
-  icDashRenderProfile(u);
+  icDashRenderSwitcher();
 
   const noneLabel = icT('dash.value.none');
   const notLinkedLabel = icT('dash.value.notLinked');
   const linkedLabel = icT('dash.value.linked');
 
-  const purchasesValue = u.purchasesSummary === 'Нет покупок' ? icT('dash.value.noPurchases') : u.purchasesSummary;
-  const telegramValue = u.telegramLinked ? (u.telegram ? '@' + u.telegram : linkedLabel) : notLinkedLabel;
-  const hasClient = u.hasClient;
+  const ctx = {
+    purchasesValue: u.purchasesSummary === 'Нет покупок' ? icT('dash.value.noPurchases') : u.purchasesSummary,
+    telegramValue: u.telegramLinked ? (u.telegram ? '@' + u.telegram : linkedLabel) : notLinkedLabel,
+    subscriptionValue: (u.subscriptionActive && u.subscriptionUntilFull)
+      ? `${icT('dash.value.activeUntil')} ${u.subscriptionUntilFull}`
+      : icT('dash.value.noSubscription'),
+    botAccessValue: u.botAccess ? '@Sp00kyEventsBot' : noneLabel,
+  };
 
-  const subscriptionValue = (u.subscriptionActive && u.subscriptionUntilFull)
-    ? `${icT('dash.value.activeUntil')} ${u.subscriptionUntilFull}`
-    : icT('dash.value.noSubscription');
+  const builders = {
+    current: icDashCurrentHtml,
+    a: icDashVariantAHtml,
+    b: icDashVariantBHtml,
+    c: icDashVariantCHtml,
+  };
+  const build = builders[icDashVariant] || icDashCurrentHtml;
+  content.innerHTML = build(u, ctx);
 
-  const botAccessValue = u.botAccess ? '@Sp00kyEventsBot' : noneLabel;
-
-  grid.innerHTML = [
-    icDashSection('Аккаунт'),
-    icDashField('regdate', 'calendar', u.regdate || '—'),
-    icDashField('lastlogin', 'clock', u.lastlogin || '—'),
-
-    icDashSection('Подписка и доступ'),
-    icDashField('purchases', 'cart', purchasesValue,
-      `<button type="button" class="btn btn-outline dash-item-action" id="dash-purchases-details">${ICONS.info}<span data-i18n="dash.row.details"></span></button>`, true),
-    icDashField('subscription', 'clock', subscriptionValue, '', true),
-    icDashField('botaccess', 'chat', botAccessValue, '', true),
-    `<div class="dash-item reveal dash-item-wide has-panel" id="dash-telegram-item">
-      <span class="dash-item-icon">${ICONS.telegram}</span>
-      <span class="dash-item-body">
-        <span class="dash-item-label" data-i18n="dash.field.telegram"></span>
-        <span class="dash-item-value">${telegramValue}</span>
-      </span>
-      <button type="button" class="btn btn-outline dash-item-action" id="dash-telegram-toggle">${ICONS.link}<span data-i18n="${u.telegramLinked ? 'dash.row.unlink' : 'dash.row.link'}"></span></button>
-      <div class="dash-telegram-panel hidden" id="dash-telegram-panel">
-        <p data-i18n="dash.telegram.hint"></p>
-        <div class="dash-telegram-row">
-          <a href="#" target="_blank" rel="noopener" class="btn btn-primary" id="dash-telegram-open">${ICONS.telegram}<span data-i18n="dash.telegram.open"></span></a>
-          <span class="dash-telegram-code" id="dash-telegram-code"></span>
-        </div>
-        <p class="dash-telegram-status" id="dash-telegram-status"></p>
-      </div>
-    </div>`,
-  ].join('');
-
-  actions.innerHTML = `
-    <button type="button" class="btn btn-outline" id="dash-purchases">${ICONS.cart}<span data-i18n="dash.action.purchases"></span></button>
-    <button type="button" class="btn btn-outline" id="dash-activate">${ICONS.key}<span data-i18n="dash.action.activate"></span></button>
-    ${hasClient ? `<button type="button" class="btn btn-outline" id="dash-configs-page">${ICONS.cloud}<span data-i18n="dash.action.configs"></span></button>` : ''}
-    ${hasClient ? `<button type="button" class="btn btn-white" id="dash-download">${ICONS.download}<span data-i18n="dash.action.download"></span></button>` : ''}
-    <button type="button" class="btn btn-outline" id="dash-password">${ICONS.lock}<span data-i18n="dash.action.password"></span></button>
-    <button type="button" class="btn btn-ghost" id="dash-logout">${ICONS.logout}<span data-i18n="dash.action.logout"></span></button>
-  `;
-
+  icWireAvatarUpload();
   icWireDashActions();
   icApplyLang();
   icInitReveal();
@@ -334,4 +527,3 @@ document.addEventListener('ic:session-ready', async (e) => {
 document.addEventListener('ic:langchange', () => {
   if(icDashUser && !icDashRendering) icDashRender();
 });
-
