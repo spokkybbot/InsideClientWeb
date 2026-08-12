@@ -201,16 +201,11 @@ function icDashRender(){
         <p class="dash-telegram-status" id="dash-telegram-status"></p>
       </div>
     </div>`,
-
-    icDashSection('Активация ключа'),
-    icDashField('keyactivate', 'key',
-      `<input type="text" class="dash-item-input" id="dash-key-input" data-i18n-placeholder="dash.row.keyPlaceholder" placeholder="${icT('dash.row.keyPlaceholder')}" autocomplete="off">`,
-      `<button type="button" class="btn btn-primary dash-item-action" id="dash-key-activate">${ICONS.key}<span data-i18n="dash.row.activate"></span></button>`,
-      true),
   ].join('');
 
   actions.innerHTML = `
     <button type="button" class="btn btn-outline" id="dash-purchases">${ICONS.cart}<span data-i18n="dash.action.purchases"></span></button>
+    <button type="button" class="btn btn-outline" id="dash-activate">${ICONS.key}<span data-i18n="dash.action.activate"></span></button>
     ${hasClient ? `<button type="button" class="btn btn-white" id="dash-download">${ICONS.download}<span data-i18n="dash.action.download"></span></button>` : ''}
     <button type="button" class="btn btn-outline" id="dash-password">${ICONS.lock}<span data-i18n="dash.action.password"></span></button>
     <button type="button" class="btn btn-ghost" id="dash-logout">${ICONS.logout}<span data-i18n="dash.action.logout"></span></button>
@@ -309,20 +304,12 @@ function icWireDashActions(){
     if(!icTelegramPollTimer) icStartTelegramPoll();
   }
 
-  document.getElementById('dash-key-activate')?.addEventListener('click', async () => {
-    const input = document.getElementById('dash-key-input');
-    const key = input ? input.value.trim() : '';
-    if(!key){ icToast(icT('toast.keyEmpty')); return; }
-    try {
-      const data = await icApiPost('/api/key/activate', { key });
-      icDashUser = data.user;
-      icToast(icT('toast.keyActivated'));
-      icDashRender();
-    } catch (err) { icToast(err.message); }
-  });
-
   document.getElementById('dash-purchases')?.addEventListener('click', () => {
     document.getElementById('dash-purchases-details')?.click();
+  });
+
+  document.getElementById('dash-activate')?.addEventListener('click', () => {
+    window.location.href = 'activate.html';
   });
   document.getElementById('dash-download')?.addEventListener('click', () => icToast(icT('toast.download')));
 

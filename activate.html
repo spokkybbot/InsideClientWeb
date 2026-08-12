@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Активация ключа — Inside Client</title>
+<script>(function(){try{var t=localStorage.getItem('ic_theme')||'mono';document.documentElement.setAttribute('data-theme', t);if(t==='custom'){var raw=localStorage.getItem('ic_custom_palette');if(raw){var vars=JSON.parse(raw);for(var k in vars){document.documentElement.style.setProperty(k, vars[k]);}}}}catch(e){}})();</script>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="activate">
+
+  <div id="cursor-glow"></div>
+  <header class="site-header" id="app-header"></header>
+
+  <main>
+    <div class="auth-shell">
+      <form class="auth-card" id="activate-form" novalidate>
+        <div class="auth-icon" id="ic-auth-icon"></div>
+        <h1 data-i18n="activate.title">Активация ключа</h1>
+        <p class="auth-sub" data-i18n="activate.subtitle">Введите ключ доступа, полученный при покупке.</p>
+
+        <div class="field">
+          <label for="activate-key" data-i18n="dash.field.keyactivate">Активация ключа</label>
+          <div class="field-input">
+            <span id="ic-key-icon"></span>
+            <input type="text" id="activate-key" name="key" autocomplete="off" data-i18n-placeholder="dash.row.keyPlaceholder" placeholder="Введите ключ">
+          </div>
+        </div>
+
+        <div class="form-error" id="activate-error"></div>
+
+        <button type="submit" class="btn btn-primary btn-block" id="activate-submit">
+          <span data-i18n="dash.row.activate">Активировать</span>
+        </button>
+
+        <div class="field-row" style="justify-content:center;">
+          <a href="dashboard.html" class="link-muted" data-i18n="activate.back">Назад в личный кабинет</a>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <footer class="site-footer" id="app-footer"></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/cursor.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/activate.js"></script>
+  <script>
+    document.getElementById('ic-auth-icon').innerHTML = ICONS.key;
+    document.getElementById('ic-key-icon').innerHTML = ICONS.key;
+  </script>
+</body>
+</html>
