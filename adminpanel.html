@@ -89,8 +89,15 @@
             <input type="number" min="1" max="100" id="key-count" class="dash-item-input" value="1" required>
           </label>
           <label class="admin-field">
-            <span>Время работы ключа, часов (0 = бессрочно)</span>
-            <input type="number" min="0" id="key-hours" class="dash-item-input" value="24" required>
+            <span>Время работы ключа (0 = бессрочно)</span>
+            <div class="admin-field-duration">
+              <input type="number" min="0" step="1" id="key-duration-value" class="dash-item-input" value="24" required>
+              <select id="key-duration-unit" class="dash-item-input admin-field-duration-unit">
+                <option value="minutes">минут</option>
+                <option value="hours" selected>часов</option>
+                <option value="days">дней</option>
+              </select>
+            </div>
           </label>
           <label class="admin-field">
             <span>Количество использований</span>
@@ -105,8 +112,15 @@
             </select>
           </label>
           <label class="admin-field" id="key-days-field">
-            <span>Срок подписки, дней</span>
-            <input type="number" min="1" id="key-days" class="dash-item-input" value="30">
+            <span>Срок подписки</span>
+            <div class="admin-field-duration">
+              <input type="number" min="1" step="1" id="key-sub-value" class="dash-item-input" value="30" required>
+              <select id="key-sub-unit" class="dash-item-input admin-field-duration-unit">
+                <option value="minutes">минут</option>
+                <option value="hours">часов</option>
+                <option value="days" selected>дней</option>
+              </select>
+            </div>
           </label>
           <button type="submit" class="btn btn-white admin-key-submit">Create key</button>
         </form>

@@ -146,6 +146,10 @@ function icDashField(key, icon, value, extraHtml, wide){
   `;
 }
 
+function icDashSection(title){
+  return `<div class="dash-section-title reveal dash-item-wide">${title}</div>`;
+}
+
 function icDashRender(){
   const grid = document.getElementById('dash-grid');
   const actions = document.getElementById('dash-actions');
@@ -170,10 +174,13 @@ function icDashRender(){
   const botAccessValue = u.botAccess ? '@Sp00kyEventsBot' : noneLabel;
 
   grid.innerHTML = [
+    icDashSection('Аккаунт'),
     icDashField('regdate', 'calendar', u.regdate || '—'),
     icDashField('lastlogin', 'clock', u.lastlogin || '—'),
     icDashField('hwid', 'cpu', u.hwid || noneLabel,
       `<button type="button" class="btn btn-outline dash-item-action" id="dash-hwid-reset">${ICONS.lock}<span data-i18n="dash.row.hwidReset"></span></button>`, true),
+
+    icDashSection('Подписка и доступ'),
     icDashField('purchases', 'cart', purchasesValue,
       `<button type="button" class="btn btn-outline dash-item-action" id="dash-purchases-details">${ICONS.info}<span data-i18n="dash.row.details"></span></button>`, true),
     icDashField('subscription', 'clock', subscriptionValue, '', true),
@@ -194,6 +201,8 @@ function icDashRender(){
         <p class="dash-telegram-status" id="dash-telegram-status"></p>
       </div>
     </div>`,
+
+    icDashSection('Активация ключа'),
     icDashField('keyactivate', 'key',
       `<input type="text" class="dash-item-input" id="dash-key-input" data-i18n-placeholder="dash.row.keyPlaceholder" placeholder="${icT('dash.row.keyPlaceholder')}" autocomplete="off">`,
       `<button type="button" class="btn btn-primary dash-item-action" id="dash-key-activate">${ICONS.key}<span data-i18n="dash.row.activate"></span></button>`,

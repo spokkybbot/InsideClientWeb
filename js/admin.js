@@ -130,23 +130,34 @@ document.addEventListener('ic:session-ready', (e) => {
   function icRewardLabel(rewardType){
     if(rewardType === 'hwid_reset') return 'Сброс HWID';
     if(rewardType === 'bot_access') return 'Доступ к боту';
-    return null; // подставляется отдельно, с указанием дней подписки
+    return null; // подставляется отдельно, с указанием срока подписки
+  }
+
+  function icFormatMinutes(minutes){
+    if(!minutes) return '0 мин.';
+    if(minutes % (24 * 60) === 0) return `${minutes / (24 * 60)} дн.`;
+    if(minutes % 60 === 0) return `${minutes / 60} ч.`;
+    return `${minutes} мин.`;
   }
 
   document.getElementById('admin-key-form')?.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const count = Number(document.getElementById('key-count').value);
-    const hoursValid = Number(document.getElementById('key-hours').value);
+    const durationValue = Number(document.getElementById('key-duration-value').value);
+    const durationUnit = document.getElementById('key-duration-unit').value;
     const maxUses = Number(document.getElementById('key-uses').value);
     const rewardType = document.getElementById('key-reward').value;
-    const subscriptionDays = Number(document.getElementById('key-days').value);
+    const subDurationValue = Number(document.getElementById('key-sub-value').value);
+    const subDurationUnit = document.getElementById('key-sub-unit').value;
 
     try {
-      const data = await icApiPost('/api/admin/keys/create', { count, hoursValid, maxUses, rewardType, subscriptionDays });
+      const data = await icApiPost('/api/admin/keys/create', {
+        count, durationValue, durationUnit, maxUses, rewardType, subDurationValue, subDurationUnit,
+      });
       const resultBox = document.getElementById('admin-key-result');
       if(resultBox && data.keys && data.keys.length){
         const first = data.keys[0];
-        const rewardLabel = icRewardLabel(first.rewardType) || `Подписка ${first.subscriptionDays} дн.`;
+        const rewardLabel = icRewardLabel(first.rewardType) || `Подписка ${icFormatMinutes(first.subscriptionMinutes)}`;
 
         const keysHtml = data.keys.map(k => `
           <div class="admin-key-created">

@@ -140,11 +140,21 @@ addColumnIfMissing('activation_keys', 'created_at TEXT');
 addColumnIfMissing('activation_keys', 'expires_at TEXT');
 addColumnIfMissing('activation_keys', 'created_by INTEGER');
 
+// activation_keys: минутная точность для срока действия ключа и срока
+// подписки (позволяет создавать ключи от 1 минуты, а не только от часа/дня).
+// Старые колонки hours_valid/subscription_days остаются в базе ради обратной
+// совместимости, но вся новая логика работает через *_minutes.
+addColumnIfMissing('activation_keys', 'key_valid_minutes INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('activation_keys', 'subscription_minutes INTEGER');
+
 // Backfill created_at/uses_count for keys that existed before this migration
 // (the three demo keys), so the new logic has sane values to work with.
 db.exec(`
   UPDATE activation_keys SET created_at = COALESCE(created_at, datetime('now'));
   UPDATE activation_keys SET uses_count = used WHERE uses_count = 0 AND used = 1;
+  UPDATE activation_keys SET key_valid_minutes = hours_valid * 60 WHERE key_valid_minutes = 0 AND hours_valid > 0;
+  UPDATE activation_keys SET subscription_minutes = subscription_days * 24 * 60
+    WHERE subscription_minutes IS NULL AND subscription_days IS NOT NULL;
 `);
 
 // Per-activation log — lets the admin checker show *every* key a user has

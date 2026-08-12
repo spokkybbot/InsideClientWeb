@@ -188,6 +188,15 @@ function formatDateFull(iso) {
   return `${pad(d.getDate())}:${pad(d.getMonth() + 1)}:${pad(d.getFullYear() % 100)}:${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
+// Человекочитаемая длительность в минутах: "45 мин.", "3 ч.", "2 дн." —
+// подбирает самую крупную единицу, которая делит значение без остатка.
+function formatDurationMinutes(minutes) {
+  if (!minutes || minutes <= 0) return null;
+  if (minutes % (24 * 60) === 0) return `${minutes / (24 * 60)} дн.`;
+  if (minutes % 60 === 0) return `${minutes / 60} ч.`;
+  return `${minutes} мин.`;
+}
+
 function isSubscriptionActive(user) {
   return Boolean(user.subscription_until && new Date(user.subscription_until).getTime() > Date.now());
 }
@@ -568,19 +577,20 @@ async function handleKeyActivate(req, res) {
   } else if (rewardType === 'bot_access') {
     db.prepare('UPDATE users SET bot_access = 1 WHERE id = ?').run(user.id);
     productLabel = 'Доступ к боту';
-  } else if (row.subscription_days) {
+  } else if (row.subscription_minutes || row.subscription_days) {
     // Per spec, both the key's own validity window *and* the subscription
     // duration it grants start counting from the moment the key was
     // created, not from the moment it's redeemed.
+    const subMinutes = row.subscription_minutes || row.subscription_days * 24 * 60;
     const base = row.created_at ? new Date(row.created_at).getTime() : Date.now();
-    const grantedUntil = base + row.subscription_days * 24 * 60 * 60 * 1000;
+    const grantedUntil = base + subMinutes * 60 * 1000;
     const currentUntil = user.subscription_until ? new Date(user.subscription_until).getTime() : 0;
     const newUntil = Math.max(currentUntil, grantedUntil);
     db.prepare('UPDATE users SET subscription_until = ? WHERE id = ?').run(
       new Date(newUntil).toISOString(),
       user.id
     );
-    productLabel = `Подписка (${row.subscription_days} дн.)`;
+    productLabel = `Подписка (${formatDurationMinutes(subMinutes)})`;
   }
 
   db.prepare('INSERT INTO purchases (user_id, product, source, purchased_at) VALUES (?, ?, ?, ?)').run(
@@ -776,11 +786,21 @@ function generateActivationKey() {
 
 const REWARD_TYPES = ['subscription', 'hwid_reset', 'bot_access'];
 const KEY_CREATE_MAX_COUNT = 100;
+const DURATION_UNIT_MINUTES = { minutes: 1, hours: 60, days: 24 * 60 };
 
-function rewardProductLabel(rewardType, subscriptionDays) {
+// value (число) + unit ('minutes'|'hours'|'days') -> минуты. Округляем и
+// зажимаем в разумных пределах, минимум — 1 минута (0 обрабатывается
+// отдельно как "бессрочно" там, где это допустимо).
+function toMinutes(value, unit, { min = 0, max = 5 * 365 * 24 * 60 } = {}) {
+  const mult = DURATION_UNIT_MINUTES[unit] || 1;
+  const raw = Math.round((parseFloat(value) || 0) * mult);
+  return Math.max(min, Math.min(max, raw));
+}
+
+function rewardProductLabel(rewardType, subscriptionMinutes) {
   if (rewardType === 'hwid_reset') return 'Сброс HWID';
   if (rewardType === 'bot_access') return 'Доступ к боту';
-  return `Подписка (${subscriptionDays} дн.)`;
+  return `Подписка (${formatDurationMinutes(subscriptionMinutes)})`;
 }
 
 async function handleAdminCreateKey(req, res) {
@@ -794,27 +814,34 @@ async function handleAdminCreateKey(req, res) {
     return fail(res, 400, 'Некорректный запрос.');
   }
 
-  const hoursValid = Math.max(0, Math.min(999999, parseInt(body.hoursValid, 10) || 0));
+  // "Время работы ключа" — 0 означает "бессрочно", поэтому здесь min: 0.
+  const keyValidMinutes = toMinutes(body.durationValue, body.durationUnit, { min: 0 });
   const maxUses = Math.max(1, Math.min(9999, parseInt(body.maxUses, 10) || 1));
   const rewardType = REWARD_TYPES.includes(body.rewardType) ? body.rewardType : 'subscription';
-  const subscriptionDays =
-    rewardType === 'subscription' ? Math.max(1, Math.min(9999, parseInt(body.subscriptionDays, 10) || 0)) : null;
+  // Срок подписки — минимум 1 минута (не может быть бессрочным через это поле).
+  const subscriptionMinutes =
+    rewardType === 'subscription' ? toMinutes(body.subDurationValue, body.subDurationUnit, { min: 1 }) : null;
   const count = Math.max(1, Math.min(KEY_CREATE_MAX_COUNT, parseInt(body.count, 10) || 1));
 
-  if (rewardType === 'subscription' && !subscriptionDays) {
-    return fail(res, 400, 'Укажите срок подписки в днях.');
+  if (rewardType === 'subscription' && !subscriptionMinutes) {
+    return fail(res, 400, 'Укажите срок подписки.');
   }
 
   const createdAt = nowIso();
-  const expiresAt = hoursValid > 0 ? new Date(Date.now() + hoursValid * 60 * 60 * 1000).toISOString() : null;
-  const product = rewardProductLabel(rewardType, subscriptionDays);
+  const expiresAt = keyValidMinutes > 0 ? new Date(Date.now() + keyValidMinutes * 60 * 1000).toISOString() : null;
+  const product = rewardProductLabel(rewardType, subscriptionMinutes);
 
   const insertStmt = db.prepare(
     `INSERT INTO activation_keys
-       (activation_key, product, reward_type, max_uses, uses_count, hours_valid, subscription_days, created_at, expires_at, created_by)
-     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`
+       (activation_key, product, reward_type, max_uses, uses_count, hours_valid, subscription_days, key_valid_minutes, subscription_minutes, created_at, expires_at, created_by)
+     VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
   );
   const existsStmt = db.prepare('SELECT 1 FROM activation_keys WHERE activation_key = ? COLLATE NOCASE');
+
+  // hours_valid/subscription_days — устаревшие колонки, оставлены только для
+  // обратной совместимости со старыми интеграциями; округляем как получится.
+  const legacyHoursValid = Math.round(keyValidMinutes / 60);
+  const legacySubscriptionDays = subscriptionMinutes ? Math.max(1, Math.round(subscriptionMinutes / (24 * 60))) : null;
 
   const createdKeys = [];
   for (let n = 0; n < count; n++) {
@@ -833,7 +860,19 @@ async function handleAdminCreateKey(req, res) {
       );
     }
 
-    insertStmt.run(activationKey, product, rewardType, maxUses, hoursValid, subscriptionDays, createdAt, expiresAt, admin.id);
+    insertStmt.run(
+      activationKey,
+      product,
+      rewardType,
+      maxUses,
+      legacyHoursValid,
+      legacySubscriptionDays,
+      keyValidMinutes,
+      subscriptionMinutes,
+      createdAt,
+      expiresAt,
+      admin.id
+    );
     createdKeys.push(activationKey);
   }
 
@@ -843,8 +882,8 @@ async function handleAdminCreateKey(req, res) {
       product,
       rewardType,
       maxUses,
-      hoursValid,
-      subscriptionDays,
+      keyValidMinutes,
+      subscriptionMinutes,
       createdAt: formatDate(createdAt),
       expiresAt: expiresAt ? formatDate(expiresAt) : 'Бессрочно',
     })),

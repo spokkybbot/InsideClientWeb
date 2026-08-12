@@ -1,11 +1,12 @@
-/* Фоновый эмбиент + звуки интерфейса (hover/click), без mp3-файлов —
-   всё генерируется на лету через Web Audio API, поэтому не нужно
-   тащить лицензированную музыку и грузить лишние ассеты.
+/* Звуки интерфейса (hover/click), без mp3-файлов — всё генерируется
+   на лету через Web Audio API, поэтому не нужно тащить лицензированную
+   музыку и грузить лишние ассеты.
 
-   Правила громкости продуманы так, чтобы звук был реально фоновый и
-   не раздражал: тихий дрон + мягкие фильтрованные тоны на кнопках.
+   Никакого фонового эмбиента — только короткие тона на клик и наведение
+   на кнопки/ссылки.
+
    Автоплей со звуком браузеры блокируют до первого жеста пользователя —
-   поэтому и эмбиент, и звуки кнопок стартуют по первому клику/тапу/
+   поэтому AudioContext создаётся и резюмируется по первому клику/тапу/
    нажатию клавиши, это нормальное поведение, не баг.
 
    Состояние (звук вкл/выкл) сохраняется в localStorage и уважается
@@ -20,12 +21,8 @@ function icAudioIsMuted(){
 (function(){
   let ctx = null;
   let masterGain = null;      // общая громкость всего звука сайта
-  let ambientGain = null;     // громкость именно фоновой музыки
-  let ambientNodes = [];
-  let started = false;
   let muted = icAudioIsMuted();
 
-  const AMBIENT_TARGET = 0.05;   // тихо — реально фон, не мешает
   const HOVER_GAIN = 0.035;
   const CLICK_GAIN = 0.06;
 
@@ -38,69 +35,6 @@ function icAudioIsMuted(){
     masterGain.gain.value = muted ? 0 : 1;
     masterGain.connect(ctx.destination);
     return ctx;
-  }
-
-  /* ---------------------------------------------------------------
-     Генеративный эмбиент: несколько мягких детюнированных тонов через
-     lowpass-фильтр с медленной LFO-модуляцией — спокойный «плывущий»
-     пад без резких атак, без слов, ничего кислотного.
-     --------------------------------------------------------------- */
-  function startAmbient(){
-    if(started || !ctx) return;
-    started = true;
-
-    ambientGain = ctx.createGain();
-    ambientGain.gain.value = 0;
-    ambientGain.connect(masterGain);
-
-    const filter = ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.value = 900;
-    filter.Q.value = 0.3;
-    filter.connect(ambientGain);
-
-    // Тихий мягкий пад из нескольких тонов (пентатоника, без диссонанса)
-    const baseFreqs = [110, 130.81, 164.81, 196];
-    ambientNodes = baseFreqs.map((freq, i) => {
-      const osc = ctx.createOscillator();
-      osc.type = i % 2 === 0 ? 'sine' : 'triangle';
-      osc.frequency.value = freq;
-      osc.detune.value = (i - baseFreqs.length / 2) * 4;
-
-      const voiceGain = ctx.createGain();
-      voiceGain.gain.value = 1 / baseFreqs.length;
-
-      // Медленная LFO на громкость каждого голоса — лёгкое «дыхание»
-      const lfo = ctx.createOscillator();
-      lfo.type = 'sine';
-      lfo.frequency.value = 0.05 + i * 0.02;
-      const lfoGain = ctx.createGain();
-      lfoGain.gain.value = 0.4 / baseFreqs.length;
-      lfo.connect(lfoGain);
-      lfoGain.connect(voiceGain.gain);
-
-      osc.connect(voiceGain);
-      voiceGain.connect(filter);
-      osc.start();
-      lfo.start();
-      return { osc, lfo, voiceGain };
-    });
-
-    // Очень медленная LFO на частоту среза фильтра — эффект "плывущего" тембра
-    const filterLfo = ctx.createOscillator();
-    filterLfo.type = 'sine';
-    filterLfo.frequency.value = 0.025;
-    const filterLfoGain = ctx.createGain();
-    filterLfoGain.gain.value = 350;
-    filterLfo.connect(filterLfoGain);
-    filterLfoGain.connect(filter.frequency);
-    filterLfo.start();
-    ambientNodes.push({ osc: filterLfo });
-
-    // Плавный fade-in, чтобы не было щелчка/резкого появления звука
-    const now = ctx.currentTime;
-    ambientGain.gain.setValueAtTime(0, now);
-    ambientGain.gain.linearRampToValueAtTime(AMBIENT_TARGET, now + 4);
   }
 
   /* ---------------------------------------------------------------
@@ -180,7 +114,6 @@ function icAudioIsMuted(){
   function firstGesture(){
     const c = ensureContext();
     if(c && c.state === 'suspended') c.resume();
-    startAmbient();
     window.removeEventListener('pointerdown', firstGesture);
     window.removeEventListener('keydown', firstGesture);
     window.removeEventListener('touchstart', firstGesture);
