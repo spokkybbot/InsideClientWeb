@@ -241,6 +241,29 @@ db.exec(`
 /* HWID-верификация: таблица логов                                         */
 /* ---------------------------------------------------------------------- */
 
+/* ---------------------------------------------------------------------- */
+/* Облачные конфиги: именованные пресеты настроек клиента на аккаунт.     */
+/* Контент — обычный текст/JSON, хранится прямо в SQLite (пресеты          */
+/* небольшие), лимиты по количеству/размеру проверяются на уровне API.    */
+/* ---------------------------------------------------------------------- */
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS configs (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    name       TEXT NOT NULL,
+    content    TEXT NOT NULL DEFAULT '',
+    size_bytes INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+
+  -- Имена пресетов уникальны в рамках одного аккаунта (без учёта регистра).
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_configs_user_name ON configs(user_id, name COLLATE NOCASE);
+  CREATE INDEX IF NOT EXISTS idx_configs_user ON configs(user_id);
+`);
+
 db.exec(`
   CREATE TABLE IF NOT EXISTS verify_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -10,6 +10,7 @@ const db = require('./db');
 const { hashPassword, verifyPassword, newToken, newLinkCode } = require('./auth-utils');
 const { handleVerify } = require('./verify');
 const { handleStatus } = require('./status');
+const { handleClientConfigsList, handleClientConfigsGet } = require('./configs-client');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || 3000;
@@ -465,6 +466,157 @@ function handleAvatarDelete(req, res) {
   db.prepare('UPDATE users SET avatar = NULL WHERE id = ?').run(user.id);
   const fresh = db.prepare('SELECT * FROM users WHERE id = ?').get(user.id);
   sendJson(res, 200, { user: userToDto(fresh) });
+}
+
+/* ---------------------------------------------------------------------- */
+/* Облачные конфиги — именованные пресеты, которые клиент читает сам      */
+/* через /api/client/configs/* (см. server/configs-client.js, доступ по   */
+/* HWID). Эти маршруты — только для личного кабинета (по сессии).         */
+/* ---------------------------------------------------------------------- */
+
+const CONFIG_NAME_RE = /^[^\s][\s\S]{0,39}$/; // 1..40 символов, не начинается с пробела
+const CONFIG_MAX_BYTES = 256 * 1024; // 256 KB на пресет — с запасом для текст/JSON
+const CONFIG_MAX_PER_USER = 20;
+
+function configToDto(row) {
+  return {
+    id: row.id,
+    name: row.name,
+    sizeBytes: row.size_bytes,
+    createdAt: formatDate(row.created_at),
+    updatedAt: formatDate(row.updated_at),
+  };
+}
+
+function validateConfigName(name) {
+  if (!CONFIG_NAME_RE.test(name)) {
+    return 'Имя конфига — от 1 до 40 символов, без пробела в начале.';
+  }
+  return null;
+}
+
+function validateConfigContent(content) {
+  if (typeof content !== 'string') return 'Содержимое конфига должно быть текстом.';
+  if (Buffer.byteLength(content, 'utf8') > CONFIG_MAX_BYTES) {
+    return `Конфиг слишком большой (максимум ${Math.floor(CONFIG_MAX_BYTES / 1024)} КБ).`;
+  }
+  return null;
+}
+
+function handleConfigsList(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const rows = db.prepare(
+    'SELECT * FROM configs WHERE user_id = ? ORDER BY updated_at DESC'
+  ).all(user.id);
+
+  sendJson(res, 200, { configs: rows.map(configToDto) });
+}
+
+/** GET /api/configs/get?id=... — единственный маршрут, отдающий контент
+ *  (список выше его намеренно не включает — пресеты могут быть увесистыми). */
+function handleConfigsGet(req, res, url) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  const id = Number(url.searchParams.get('id'));
+  const row = db.prepare('SELECT * FROM configs WHERE id = ? AND user_id = ?').get(id, user.id);
+  if (!row) return fail(res, 404, 'Конфиг не найден.');
+
+  sendJson(res, 200, { config: { ...configToDto(row), content: row.content } });
+}
+
+async function handleConfigsCreate(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  let body;
+  try { body = await readJsonBody(req, CONFIG_MAX_BYTES + 4096); } catch (e) {
+    return fail(res, 413, 'Файл слишком большой.');
+  }
+
+  const name = String(body.name || '').trim();
+  const content = String(body.content ?? '');
+
+  const nameError = validateConfigName(name);
+  if (nameError) return fail(res, 400, nameError);
+  const contentError = validateConfigContent(content);
+  if (contentError) return fail(res, 400, contentError);
+
+  const count = db.prepare('SELECT COUNT(*) AS c FROM configs WHERE user_id = ?').get(user.id).c;
+  if (count >= CONFIG_MAX_PER_USER) {
+    return fail(res, 409, `Достигнут лимит конфигов (${CONFIG_MAX_PER_USER}).`);
+  }
+
+  const existing = db.prepare(
+    'SELECT id FROM configs WHERE user_id = ? AND name = ? COLLATE NOCASE'
+  ).get(user.id, name);
+  if (existing) return fail(res, 409, 'Конфиг с таким именем уже есть.');
+
+  const now = nowIso();
+  const sizeBytes = Buffer.byteLength(content, 'utf8');
+  const info = db.prepare(
+    'INSERT INTO configs (user_id, name, content, size_bytes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(user.id, name, content, sizeBytes, now, now);
+
+  const row = db.prepare('SELECT * FROM configs WHERE id = ?').get(info.lastInsertRowid);
+  sendJson(res, 201, { config: configToDto(row) });
+}
+
+async function handleConfigsUpdate(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  let body;
+  try { body = await readJsonBody(req, CONFIG_MAX_BYTES + 4096); } catch (e) {
+    return fail(res, 413, 'Файл слишком большой.');
+  }
+
+  const id = Number(body.id);
+  const row = db.prepare('SELECT * FROM configs WHERE id = ? AND user_id = ?').get(id, user.id);
+  if (!row) return fail(res, 404, 'Конфиг не найден.');
+
+  let nextName = row.name;
+  if (body.name !== undefined) {
+    nextName = String(body.name || '').trim();
+    const nameError = validateConfigName(nextName);
+    if (nameError) return fail(res, 400, nameError);
+    const conflict = db.prepare(
+      'SELECT id FROM configs WHERE user_id = ? AND name = ? COLLATE NOCASE AND id != ?'
+    ).get(user.id, nextName, id);
+    if (conflict) return fail(res, 409, 'Конфиг с таким именем уже есть.');
+  }
+
+  let nextContent = row.content;
+  if (body.content !== undefined) {
+    nextContent = String(body.content ?? '');
+    const contentError = validateConfigContent(nextContent);
+    if (contentError) return fail(res, 400, contentError);
+  }
+
+  const sizeBytes = Buffer.byteLength(nextContent, 'utf8');
+  db.prepare(
+    'UPDATE configs SET name = ?, content = ?, size_bytes = ?, updated_at = ? WHERE id = ?'
+  ).run(nextName, nextContent, sizeBytes, nowIso(), id);
+
+  const fresh = db.prepare('SELECT * FROM configs WHERE id = ?').get(id);
+  sendJson(res, 200, { config: configToDto(fresh) });
+}
+
+async function handleConfigsDelete(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+
+  let body;
+  try { body = await readJsonBody(req); } catch (e) { return fail(res, 400, 'Некорректный запрос.'); }
+
+  const id = Number(body.id);
+  const row = db.prepare('SELECT id FROM configs WHERE id = ? AND user_id = ?').get(id, user.id);
+  if (!row) return fail(res, 404, 'Конфиг не найден.');
+
+  db.prepare('DELETE FROM configs WHERE id = ?').run(id);
+  sendJson(res, 200, { ok: true });
 }
 
 const PLAN_PRODUCT = {
@@ -1090,6 +1242,11 @@ const API_ROUTES = {
   'POST /api/password/change': handlePasswordChange,
   'POST /api/me/avatar': handleAvatarUpload,
   'DELETE /api/me/avatar': handleAvatarDelete,
+  'GET /api/configs': handleConfigsList,
+  'GET /api/configs/get': handleConfigsGet,
+  'POST /api/configs/create': handleConfigsCreate,
+  'POST /api/configs/update': handleConfigsUpdate,
+  'POST /api/configs/delete': handleConfigsDelete,
   'POST /api/purchases/buy': handleBuy,
   'POST /api/key/activate': handleKeyActivate,
   'GET /api/admin/user': handleAdminUserLookup,
@@ -1124,6 +1281,25 @@ const server = http.createServer((req, res) => {
       // закрыться из-за временного падения сервера. Возвращаем ok.
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ action: 'ok', secondsLeft: 9999 }));
+    });
+  }
+
+  // /api/client/configs/* — облачные конфиги для самого клиента, доступ по
+  // HWID (без cookie/логина). Отдельный модуль: свой CORS + rate-limit,
+  // как у /api/verify.
+  if (url.pathname === '/api/client/configs/list') {
+    return Promise.resolve(handleClientConfigsList(req, res)).catch((err) => {
+      console.error('[configs-client]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+
+  if (url.pathname === '/api/client/configs/get') {
+    return Promise.resolve(handleClientConfigsGet(req, res)).catch((err) => {
+      console.error('[configs-client]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
     });
   }
 
