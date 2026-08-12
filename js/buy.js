@@ -17,12 +17,12 @@ const PLANS = [
     featured: true,
   },
   {
-    id: 'year',
+    id: 'month6',
     icon: 'shield',
-    price: 190,
+    price: 150,
     category: 'client',
-    name: { RU: 'Год', EN: 'Year' },
-    desc: { RU: 'Полный сезон без переплат', EN: 'A full year, at a fraction of the cost' },
+    name: { RU: '6 месяцев', EN: '6 months' },
+    desc: { RU: 'Полгода без переплат', EN: 'Half a year, at a fraction of the cost' },
   },
   {
     id: 'forever',

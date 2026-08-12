@@ -159,6 +159,9 @@
   const logTableEl    = document.getElementById('verify-log-table');
   const logLoadBtn    = document.getElementById('verify-log-load-btn');
   const logFilterEl   = document.getElementById('verify-log-filter');
+  const logDownloadBtn = document.getElementById('verify-log-download-btn');
+
+  let lastLogs = [];
 
   async function loadLog() {
     if (!logTableEl) return;
@@ -168,6 +171,7 @@
     try {
       const data = await icApiGet(url);
       const logs = data.logs || [];
+      lastLogs = logs;
       if (!logs.length) {
         logTableEl.innerHTML = '<p style="color:var(--text-muted)">Записей нет.</p>';
         return;
@@ -196,6 +200,35 @@
   }
 
   logLoadBtn?.addEventListener('click', loadLog);
+
+  function downloadVerifyLog() {
+    if (!lastLogs.length) {
+      loadLog().then(() => { if (lastLogs.length) downloadVerifyLog(); });
+      return;
+    }
+    const header = ['id', 'hwid', 'clientIp', 'result', 'uid', 'login', 'createdAt'];
+    const csvEscape = (v) => {
+      const s = v === null || v === undefined ? '' : String(v);
+      return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [header.join(';')];
+    lastLogs.forEach((l) => {
+      lines.push([l.id, l.hwid, l.clientIp, l.result, l.uid, l.login, l.createdAt].map(csvEscape).join(';'));
+    });
+    const csv = '\uFEFF' + lines.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    a.href = url;
+    a.download = `verify-log-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  logDownloadBtn?.addEventListener('click', downloadVerifyLog);
 
   /* ------------------------------------------------------------------ */
   /* Misc                                                                */

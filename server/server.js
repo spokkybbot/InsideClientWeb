@@ -470,18 +470,18 @@ function handleAvatarDelete(req, res) {
 const PLAN_PRODUCT = {
   month1: 'Клиент 1.16.5',
   month3: 'Клиент 1.16.5',
-  year: 'Клиент 1.16.5',
+  month6: 'Клиент 1.16.5',
   forever: 'Клиент 1.16.5',
   bot: 'Доступ к боту',
 };
 
 // Каждый тариф ведёт на свой конкретный лот FunPay.
 const PLAN_LINKS = {
-  month1: 'https://funpay.com/lots/offer?id=74713087',
-  month3: 'https://funpay.com/lots/offer?id=74713134',
-  year: 'https://funpay.com/lots/offer?id=74713169',
-  forever: 'https://funpay.com/lots/offer?id=74713197',
-  hwid: 'https://funpay.com/lots/offer?id=74713229',
+  month1: 'https://funpay.com/lots/offer?id=74861382',
+  month3: 'https://funpay.com/lots/offer?id=74861412',
+  month6: 'https://funpay.com/lots/offer?id=74861434',
+  forever: 'https://funpay.com/lots/offer?id=74861459',
+  hwid: 'https://funpay.com/lots/offer?id=74861471',
 };
 
 async function handleBuy(req, res) {
