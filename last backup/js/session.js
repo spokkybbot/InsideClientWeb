@@ -42,7 +42,7 @@
       window.location.href = 'dashboard.html';
       return;
     }
-  } else if (page === 'dashboard' || page === 'password' || page === 'admin' || page === 'configs') {
+  } else if (page === 'dashboard' || page === 'password' || page === 'admin') {
     window.location.href = 'login.html';
     return;
   }

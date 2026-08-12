@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Личный кабинет — Inside Client</title>
+<title>Облачные конфиги — Inside Client</title>
 <script>(function(){try{var t=localStorage.getItem('ic_theme')||'mono';document.documentElement.setAttribute('data-theme', t);if(t==='custom'){var raw=localStorage.getItem('ic_custom_palette');if(raw){var vars=JSON.parse(raw);for(var k in vars){document.documentElement.style.setProperty(k, vars[k]);}}}}catch(e){}})();</script>
 <link rel="stylesheet" href="css/style.css">
 </head>
-<body data-page="dashboard">
+<body data-page="configs">
 
   <div id="cursor-glow"></div>
   <header class="site-header" id="app-header"></header>
@@ -16,16 +16,13 @@
     <div class="dash-shell">
       <div class="dash-head reveal">
         <span class="eyebrow"><span class="dot"></span><span data-i18n="dash.eyebrow">Аккаунт</span></span>
-        <h1 data-i18n="dash.title">Личный кабинет</h1>
+        <h1 data-i18n="dash.configs.title">Облачные конфиги</h1>
       </div>
 
-      <div class="dash-layout">
-        <aside class="dash-aside reveal">
-          <div class="dash-profile" id="dash-profile"></div>
-          <div class="dash-actions" id="dash-actions"></div>
-        </aside>
-        <div class="dash-main">
-          <div class="dash-grid" id="dash-grid"></div>
+      <div class="configs-container">
+        <div class="dash-configs reveal" id="dash-configs"></div>
+        <div class="field-row" style="justify-content:center; margin-top:22px;">
+          <a href="dashboard.html" class="link-muted" data-i18n="activate.back">Назад в личный кабинет</a>
         </div>
       </div>
     </div>
@@ -43,6 +40,6 @@
   <script src="js/audio.js"></script>
   <script src="js/api.js"></script>
   <script src="js/session.js"></script>
-  <script src="js/dashboard.js"></script>
+  <script src="js/configs.js"></script>
 </body>
 </html>
