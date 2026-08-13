@@ -53,7 +53,7 @@ function icConfigEditorHtml(){
       </div>
       <div class="dash-config-upload-row">
         <button type="button" class="btn btn-outline" id="dash-config-upload-btn">${ICONS.file}<span>${icT('dash.configs.uploadFile')}</span></button>
-        <input type="file" id="dash-config-upload-input" class="dash-avatar-input" accept=".txt,text/plain" hidden>
+        <input type="file" id="dash-config-upload-input" class="dash-avatar-input" accept=".insideclient" hidden>
         <span class="dash-config-upload-status" id="dash-config-upload-status">${statusText}</span>
       </div>
       <p class="dash-configs-hint">${icT('dash.configs.txtOnlyHint')}</p>
@@ -89,7 +89,7 @@ function icConfigsRender(){
 
 function icReadConfigFile(file){
   return new Promise((resolve, reject) => {
-    const nameOk = /\.txt$/i.test(file.name || '');
+    const nameOk = /\.insideclient$/i.test(file.name || '');
     const typeOk = !file.type || file.type === 'text/plain';
     if(!nameOk || !typeOk){
       reject(new Error(icT('dash.configs.uploadWrongType')));

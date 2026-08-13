@@ -1,32 +1,12 @@
 /* Personal cabinet — renders real account data fetched from /api/me and
-   wires each row's action to the backend. Supports 4 interchangeable
-   layouts ("current" + 3 rework concepts) picked via the switcher at the
-   top of the page and remembered per-browser in localStorage. */
+   wires each row's action to the backend. Single layout (the original
+   two-column view); the metrics/navigation/quick-actions rework
+   concepts and the variant switcher have been removed. */
 
 let icDashUser = null;
 let icDashRendering = false;
 let icTelegramPending = null; // { code, deepLink, expiresAt }
 let icTelegramPollTimer = null;
-
-const IC_DASH_VARIANTS = ['current', 'a', 'b', 'c'];
-const IC_DASH_VARIANT_KEY = 'ic_dash_variant';
-
-function icDashGetVariant(){
-  try {
-    const saved = localStorage.getItem(IC_DASH_VARIANT_KEY);
-    if(IC_DASH_VARIANTS.includes(saved)) return saved;
-  } catch(e){ /* ignore */ }
-  return 'current';
-}
-
-function icDashSetVariant(v){
-  if(!IC_DASH_VARIANTS.includes(v)) return;
-  icDashVariant = v;
-  try { localStorage.setItem(IC_DASH_VARIANT_KEY, v); } catch(e){ /* ignore */ }
-  icDashRender();
-}
-
-let icDashVariant = icDashGetVariant();
 
 function icDashInitials(login){
   return (login || '?').trim().charAt(0).toUpperCase();
@@ -138,132 +118,7 @@ function icDashActionsHtml(u, kinds){
   return kinds.map((k) => icDashActionBtn(k, u)).join('');
 }
 
-function icDashStatCard(icon, labelKey, value, id, asButton){
-  const tag = asButton ? 'button' : 'div';
-  const attrs = asButton ? `type="button" id="${id}"` : (id ? `id="${id}"` : '');
-  return `<${tag} class="dash-stat-card" ${attrs}>
-    <span class="dash-stat-icon">${ICONS[icon]}</span>
-    <span class="dash-stat-label" data-i18n="dash.field.${labelKey}"></span>
-    <span class="dash-stat-value">${value}</span>
-  </${tag}>`;
-}
-
-/* ---- variant switcher ---- */
-
-function icDashRenderSwitcher(){
-  const box = document.getElementById('dash-variant-switch');
-  if(!box) return;
-  const opts = [
-    ['current', 'dash.variant.current'],
-    ['a', 'dash.variant.a'],
-    ['b', 'dash.variant.b'],
-    ['c', 'dash.variant.c'],
-  ];
-  box.innerHTML = `
-    <span class="dash-variant-switch-label" data-i18n="dash.variant.label"></span>
-    <div class="dash-variant-switch-btns">
-      ${opts.map(([key, i18nKey]) => `<button type="button" class="dash-variant-btn${icDashVariant === key ? ' active' : ''}" data-variant="${key}" data-i18n="${i18nKey}"></button>`).join('')}
-    </div>
-  `;
-  box.querySelectorAll('.dash-variant-btn').forEach((btn) => {
-    btn.addEventListener('click', () => icDashSetVariant(btn.dataset.variant));
-  });
-}
-
-/* ---- variant A: profile header + metric cards + compact list ---- */
-
-function icDashVariantAHtml(u, ctx){
-  return `
-    <div class="dash-variant dash-variant-a">
-      <div class="dash-profile dash-a-profile reveal">
-        ${icDashProfileBlockHtml(u, false)}
-      </div>
-
-      <div class="dash-stat-grid reveal">
-        ${icDashStatCard('clock', 'subscription', ctx.subscriptionValue)}
-        ${icDashStatCard('cart', 'purchases', ctx.purchasesValue, 'dash-purchases-details', true)}
-        ${icDashStatCard('chat', 'botaccess', ctx.botAccessValue)}
-      </div>
-
-      <div class="dash-grid reveal">
-        ${icDashSection('Аккаунт')}
-        ${icDashField('regdate', 'calendar', u.regdate || '—')}
-        ${icDashField('lastlogin', 'clock', u.lastlogin || '—')}
-        ${icDashTelegramItem(u, ctx.telegramValue)}
-      </div>
-
-      <div class="dash-actions dash-a-actions reveal">
-        ${icDashActionsHtml(u, ['activate', 'configs', 'download', 'password', 'logout'])}
-      </div>
-    </div>
-  `;
-}
-
-/* ---- variant B: sidebar navigation + overview panel ---- */
-
-function icDashVariantBHtml(u, ctx){
-  return `
-    <div class="dash-variant dash-variant-b reveal">
-      <aside class="dash-b-nav">
-        <div class="dash-b-nav-profile">${icDashProfileBlockHtml(u, true)}</div>
-        <div class="dash-b-nav-list">
-          <span class="dash-b-nav-item active">${ICONS.spark}<span>Обзор</span></span>
-          <button type="button" class="dash-b-nav-item" id="dash-purchases-details">${ICONS.cart}<span data-i18n="dash.action.purchases"></span></button>
-          ${u.hasClient ? `<button type="button" class="dash-b-nav-item" id="dash-configs-page">${ICONS.cloud}<span data-i18n="dash.action.configs"></span></button>` : ''}
-          <button type="button" class="dash-b-nav-item" id="dash-password">${ICONS.lock}<span data-i18n="dash.action.password"></span></button>
-          <button type="button" class="dash-b-nav-item" id="dash-logout">${ICONS.logout}<span data-i18n="dash.action.logout"></span></button>
-        </div>
-      </aside>
-
-      <div class="dash-b-content">
-        <div class="dash-stat-grid dash-b-stats">
-          ${icDashStatCard('clock', 'subscription', ctx.subscriptionValue)}
-          ${icDashStatCard('chat', 'botaccess', ctx.botAccessValue)}
-        </div>
-
-        <div class="dash-grid">
-          ${icDashTelegramItem(u, ctx.telegramValue)}
-          ${icDashField('regdate', 'calendar', u.regdate || '—')}
-          ${icDashField('lastlogin', 'clock', u.lastlogin || '—')}
-        </div>
-
-        <div class="dash-actions dash-b-actions">
-          ${icDashActionsHtml(u, ['activate', 'download'])}
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-/* ---- variant C: featured quick actions on top, compact list below ---- */
-
-function icDashVariantCHtml(u, ctx){
-  return `
-    <div class="dash-variant dash-variant-c">
-      <div class="dash-profile dash-c-profile reveal">
-        ${icDashProfileBlockHtml(u, true)}
-        <span class="dash-badge badge-sub dash-c-sub-badge">${ctx.subscriptionValue}</span>
-      </div>
-
-      <div class="dash-c-featured reveal">
-        ${icDashActionsHtml(u, ['download', 'activate', 'configs']).replace(/class="btn (btn-outline|btn-white)"/g, 'class="dash-c-featured-btn"')}
-      </div>
-
-      <div class="dash-grid reveal">
-        ${icDashPurchasesItem(ctx.purchasesValue)}
-        ${icDashField('botaccess', 'chat', ctx.botAccessValue, '', true)}
-        ${icDashTelegramItem(u, ctx.telegramValue)}
-        ${icDashField('lastlogin', 'clock', u.lastlogin || '—')}
-      </div>
-
-      <div class="dash-actions dash-c-actions reveal">
-        ${icDashActionsHtml(u, ['password', 'logout'])}
-      </div>
-    </div>
-  `;
-}
-
-/* ---- variant "current": the original two-column layout, unchanged ---- */
+/* ---- layout: two-column profile + account/subscription grid ---- */
 
 function icDashCurrentHtml(u, ctx){
   return `
@@ -379,8 +234,6 @@ function icDashRender(){
   icDashRendering = true;
   const u = icDashUser;
 
-  icDashRenderSwitcher();
-
   const noneLabel = icT('dash.value.none');
   const notLinkedLabel = icT('dash.value.notLinked');
   const linkedLabel = icT('dash.value.linked');
@@ -394,14 +247,7 @@ function icDashRender(){
     botAccessValue: u.botAccess ? '@Sp00kyEventsBot' : noneLabel,
   };
 
-  const builders = {
-    current: icDashCurrentHtml,
-    a: icDashVariantAHtml,
-    b: icDashVariantBHtml,
-    c: icDashVariantCHtml,
-  };
-  const build = builders[icDashVariant] || icDashCurrentHtml;
-  content.innerHTML = build(u, ctx);
+  content.innerHTML = icDashCurrentHtml(u, ctx);
 
   icWireAvatarUpload();
   icWireDashActions();
