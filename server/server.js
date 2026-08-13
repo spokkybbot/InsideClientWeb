@@ -10,6 +10,7 @@ const db = require('./db');
 const { hashPassword, verifyPassword, newToken, newLinkCode } = require('./auth-utils');
 const { handleVerify } = require('./verify');
 const { handleStatus } = require('./status');
+const { handleClientBind } = require('./client-bind');
 const { handleClientConfigsList, handleClientConfigsGet } = require('./configs-client');
 
 const ROOT = path.join(__dirname, '..');
@@ -1302,6 +1303,17 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/verify') {
     return Promise.resolve(handleVerify(req, res)).catch((err) => {
       console.error('[verify]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+
+  // /api/client/bind — первый запуск клиента, привязка HWID по логину/паролю.
+  // Отдельный модуль по тем же причинам, что и /api/verify: свой rate-limit
+  // (тут ещё и по паролю) и CORS без cookie/сессии.
+  if (url.pathname === '/api/client/bind') {
+    return Promise.resolve(handleClientBind(req, res)).catch((err) => {
+      console.error('[client-bind]', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
     });

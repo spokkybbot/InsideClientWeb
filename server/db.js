@@ -275,6 +275,11 @@ db.exec(`
     created_at TEXT NOT NULL
   );
 
+  -- Один и тот же HWID не может быть привязан больше чем к одному аккаунту
+  -- одновременно (частичный индекс — NULL'ы, т.е. непривязанные аккаунты,
+  -- не участвуют в проверке уникальности).
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_hwid_unique ON users(hwid) WHERE hwid IS NOT NULL;
+
   CREATE INDEX IF NOT EXISTS idx_verify_log_hwid       ON verify_log(hwid);
   CREATE INDEX IF NOT EXISTS idx_verify_log_result     ON verify_log(result);
   CREATE INDEX IF NOT EXISTS idx_verify_log_created    ON verify_log(created_at);
