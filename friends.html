@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Друзья — Inside Client</title>
+<script>(function(){try{var t=localStorage.getItem('ic_theme')||'mono';document.documentElement.setAttribute('data-theme', t);if(t==='custom'){var raw=localStorage.getItem('ic_custom_palette');if(raw){var vars=JSON.parse(raw);for(var k in vars){document.documentElement.style.setProperty(k, vars[k]);}}}}catch(e){}})();</script>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .friends-add { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:18px 0 8px; }
+  .friends-add .input { flex:1; min-width:220px; }
+  .friend-msg { font-size:13px; color:var(--accent, #9b6bff); }
+  .friend-msg.err { color:#e74c3c; }
+  .friends-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; margin-top:18px; }
+  .friend-card { background:var(--card-bg,#16141f); border:1px solid var(--border,#2a2740); border-radius:14px; padding:14px 16px; }
+  .friend-card.hidden-friend { opacity:.65; }
+  .friend-card .fc-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+  .friend-card .fc-login { font-weight:600; font-size:15px; word-break:break-all; }
+  .friend-card .fc-nick { color:var(--text-muted,#9a93b2); font-size:13px; margin-top:2px; }
+  .friend-card .fc-row { font-size:13px; margin-top:6px; color:var(--text,#e8e6f0); }
+  .friend-card .fc-row b { color:var(--text-muted,#9a93b2); font-weight:500; }
+  .badge { display:inline-block; font-size:11px; padding:2px 8px; border-radius:999px; }
+  .badge-on { background:rgba(46,204,113,.16); color:#2ecc71; }
+  .badge-off { background:rgba(231,76,60,.16); color:#e74c3c; }
+  .badge-hide { background:rgba(155,107,255,.16); color:#9b6bff; }
+  .friend-card .fc-del { margin-top:10px; }
+  .friend-empty { color:var(--text-muted,#9a93b2); margin-top:18px; }
+</style>
+</head>
+<body data-page="friends">
+
+  <div id="cursor-glow"></div>
+  <header class="site-header" id="app-header"></header>
+
+  <main>
+    <div class="dash-shell">
+      <div class="dash-head reveal">
+        <span class="eyebrow"><span class="dot"></span>Аккаунт</span>
+        <h1>Друзья</h1>
+        <p class="dash-sub">Добавляй друзей по логину сайта — и видь их координаты, анархию, броню и ХП прямо в клиенте (виджет «Друзья»).</p>
+      </div>
+
+      <div class="friends-add reveal">
+        <input type="text" id="friend-login" class="input" placeholder="Логин друга на сайте" autocomplete="off">
+        <button type="button" class="btn btn-primary" id="friend-add-btn">Добавить</button>
+        <span id="friend-add-msg" class="friend-msg"></span>
+      </div>
+
+      <div class="friends-container">
+        <div class="friends-grid" id="friends-list"></div>
+        <p class="friend-empty" id="friends-empty" style="display:none;">Пока нет друзей. Добавь первого по логину выше.</p>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer" id="app-footer"></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="js/icons.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/cursor.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/friends.js"></script>
+</body>
+</html>

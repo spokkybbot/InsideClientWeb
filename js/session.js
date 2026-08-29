@@ -46,10 +46,14 @@
       window.location.href = 'dashboard.html';
       return;
     }
-  } else if (page === 'dashboard' || page === 'password' || page === 'admin' || page === 'configs') {
+  } else if (page === 'dashboard' || page === 'password' || page === 'admin' || page === 'configs' || page === 'friends') {
     window.location.href = 'login.html';
     return;
   }
+
+  // Ссылка «Друзья» в шапке — только для авторизованных.
+  const friendsBtn = document.getElementById('nav-friends-link');
+  if (friendsBtn) friendsBtn.style.display = user ? '' : 'none';
 
   document.dispatchEvent(new CustomEvent('ic:session-ready', { detail: { user } }));
 })();

@@ -286,4 +286,43 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_verify_log_user       ON verify_log(user_id);
 `);
 
+/* ---------------------------------------------------------------------- */
+/* Друзья + живые состояния (координаты/броня/хп/предметы/голова).        */
+/* Данные пишет клиент (по HWID, как /api/client/configs/*) и смотрит      */
+/* сам клиент (виджет «Друзья» в HUD) и личный кабинет (по сессии).       */
+/* Дружба взаимная: при добавлении создаются обе связки (A->B и B->A).    */
+/* ---------------------------------------------------------------------- */
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS live_states (
+    user_id     INTEGER PRIMARY KEY,
+    login       TEXT NOT NULL,
+    nick        TEXT,
+    server      TEXT,
+    anarchy_num INTEGER,
+    x           INTEGER,
+    y           INTEGER,
+    z           INTEGER,
+    armor       TEXT,
+    hp          REAL,
+    items       TEXT,
+    head        TEXT,
+    hidden      INTEGER NOT NULL DEFAULT 0,
+    updated_at  TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS friends (
+    user_id    INTEGER NOT NULL,
+    friend_id  INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, friend_id),
+    FOREIGN KEY(user_id) REFERENCES users(id),
+    FOREIGN KEY(friend_id) REFERENCES users(id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_friends_user    ON friends(user_id);
+  CREATE INDEX IF NOT EXISTS idx_friends_friend  ON friends(friend_id);
+`);
+
 module.exports = db;

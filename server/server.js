@@ -12,6 +12,12 @@ const { handleVerify } = require('./verify');
 const { handleStatus } = require('./status');
 const { handleClientBind } = require('./client-bind');
 const { handleClientConfigsList, handleClientConfigsGet } = require('./configs-client');
+const {
+  handleFriendsState,
+  handleFriendsList,
+  handleFriendsAdd,
+  handleFriendsRemove,
+} = require('./friends');
 
 const ROOT = path.join(__dirname, '..');
 const PORT = process.env.PORT || 3000;
@@ -1343,6 +1349,36 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/client/configs/get') {
     return Promise.resolve(handleClientConfigsGet(req, res)).catch((err) => {
       console.error('[configs-client]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+
+  // /api/client/friends/* — друзья + живые состояния (HWID или сессия).
+  if (url.pathname === '/api/client/friends/state') {
+    return Promise.resolve(handleFriendsState(req, res)).catch((err) => {
+      console.error('[friends]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/client/friends/list') {
+    return Promise.resolve(handleFriendsList(req, res)).catch((err) => {
+      console.error('[friends]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/client/friends/add') {
+    return Promise.resolve(handleFriendsAdd(req, res)).catch((err) => {
+      console.error('[friends]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/client/friends/remove') {
+    return Promise.resolve(handleFriendsRemove(req, res)).catch((err) => {
+      console.error('[friends]', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
     });

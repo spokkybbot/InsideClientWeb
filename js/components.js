@@ -30,6 +30,7 @@ function icRenderHeader(active){
     <div class="header-actions">
       <a href="${IC_TELEGRAM_URL}" target="_blank" rel="noopener" class="btn btn-ghost" id="support-link"><span class="btn-icon">${ICONS.chat}</span><span class="btn-label" data-i18n="nav.support">Поддержка</span></a>
       <a href="buy.html" class="btn ${active === 'buy' ? 'btn-primary' : 'btn-outline'}"><span class="btn-icon">${ICONS.cart}</span><span class="btn-label" data-i18n="nav.buy">Купить</span></a>
+      <a href="friends.html" class="btn ${active === 'friends' ? 'btn-primary' : 'btn-outline'}" id="nav-friends-link" style="display:none;"><span class="btn-icon">${ICONS.users}</span><span class="btn-label" data-i18n="nav.friends">Друзья</span></a>
       <a href="login.html" class="btn ${active === 'login' ? 'btn-primary' : 'btn-white'}"><span class="btn-icon">${ICONS.user}</span><span class="btn-label" data-i18n="nav.login">Авторизация</span></a>
       <button type="button" class="theme-switch-btn audio-toggle-btn" id="audio-toggle-btn" aria-label="Звук" aria-pressed="false"></button>
       <div class="theme-switch" id="theme-switch">
