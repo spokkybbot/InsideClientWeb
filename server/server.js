@@ -26,6 +26,9 @@ const SESSION_COOKIE = 'ic_sid';
 const SESSION_SHORT_MS = 2 * 24 * 60 * 60 * 1000;   // 2 days
 const SESSION_LONG_MS = 30 * 24 * 60 * 60 * 1000;  // 30 days ("remember me")
 
+// 64-hex (SHA-256) HWID, как в таблице users.hwid.
+const HWID_RE = /^[0-9a-fA-F]{64}$/;
+
 const LOGIN_RE = /^[A-Za-z0-9_]{3,20}$/;
 const LINK_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const BOT_USERNAME = process.env.TELEGRAM_BOT_USERNAME || 'InsideClientBot';
@@ -1268,6 +1271,48 @@ function serveStatic(req, res, pathname) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Лаунчер-авторизация: проверка логин/пароль + HWID + подписка перед      */
+/* запуском клиента. Жёсткая привязка HWID: на первом успешном входе       */
+/* биндим, дальше требуем совпадения.                                       */
+/* ---------------------------------------------------------------------- */
+
+async function handleLauncherAuth(req, res) {
+  let body;
+  try {
+    body = await readJsonBody(req);
+  } catch (e) {
+    return sendJson(res, 400, { status: 'reject', error: 'bad_request' });
+  }
+
+  const login = String(body.login || '').trim();
+  const password = String(body.password || '');
+  const hwid = String(body.hwid || '').trim().toLowerCase();
+
+  if (!login || !password || !HWID_RE.test(hwid)) {
+    return sendJson(res, 400, { status: 'reject', error: 'bad_request' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE login = ? COLLATE NOCASE').get(login);
+  if (!user || !verifyPassword(password, user.password_hash)) {
+    return sendJson(res, 401, { status: 'reject', error: 'invalid_credentials' });
+  }
+  if (user.banned) {
+    return sendJson(res, 403, { status: 'reject', error: 'banned' });
+  }
+  if (!hasClientAccess(user)) {
+    return sendJson(res, 403, { status: 'reject', error: 'no_subscription' });
+  }
+
+  if (!user.hwid) {
+    db.prepare('UPDATE users SET hwid = ? WHERE id = ?').run(hwid, user.id);
+  } else if (user.hwid !== hwid) {
+    return sendJson(res, 403, { status: 'reject', error: 'hwid_mismatch' });
+  }
+
+  sendJson(res, 200, { status: 'ok', login: user.login });
+}
+
+/* ---------------------------------------------------------------------- */
 /* Router                                                                 */
 /* ---------------------------------------------------------------------- */
 
@@ -1381,6 +1426,14 @@ const server = http.createServer((req, res) => {
       console.error('[friends]', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+
+  if (url.pathname === '/api/client/launcher/auth') {
+    return Promise.resolve(handleLauncherAuth(req, res)).catch((err) => {
+      console.error('[launcher-auth]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', error: 'server_error' }));
     });
   }
 
