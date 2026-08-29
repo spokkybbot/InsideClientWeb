@@ -229,30 +229,31 @@ async function handleFriendsList(req, res) {
     ORDER BY u.login COLLATE NOCASE
   `).all(user.id);
 
-  const friends = rows.map((r) => {
-    // Друг включил «скрыть информацию обо мне» — данных нет намеренно.
-    if (r.hidden) {
-      return { login: r.login, hidden: true, online: false };
-    }
-    // Нет live-состояния вообще (друг не в сети / не запускал клиент).
-    if (!r.nick) {
-      return { login: r.login, hidden: false, online: false, offline: true };
-    }
-    return {
-      login: r.login,
-      nick: r.nick,
-      server: r.server || null,
-      anarchy_num: r.anarchy_num,
-      x: r.x, y: r.y, z: r.z,
-      armor: parseJsonField(r.armor),
-      hp: r.hp,
-      items: parseJsonField(r.items),
-      head: r.head || null,
-      hidden: false,
-      online: onlinedAt(r.updated_at),
-      updated_at: r.updated_at,
-    };
-  });
+  const friends = rows
+    // Показываем только друзей, которые СЕЙЧАС на spookytime (свежий
+    // live-стейт). Остальные (оффлайн / на другом сервере) не отображаются —
+    // виджет «Друзья» остаётся пустым.
+    .filter((r) => r.nick && r.server === 'spookytime' && onlinedAt(r.updated_at))
+    .map((r) => {
+      // Друг включил «скрыть информацию обо мне» — не отдаём ник/состояние,
+      // только сам факт, что друг на spookytime и скрыт.
+      if (r.hidden) {
+        return { hidden: true, online: true };
+      }
+      return {
+        nick: r.nick,
+        server: r.server || null,
+        anarchy_num: r.anarchy_num,
+        x: r.x, y: r.y, z: r.z,
+        armor: parseJsonField(r.armor),
+        hp: r.hp,
+        items: parseJsonField(r.items),
+        head: r.head || null,
+        hidden: false,
+        online: true,
+        updated_at: r.updated_at,
+      };
+    });
 
   sendJson(res, 200, { status: 'access', friends });
 }
