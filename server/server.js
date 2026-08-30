@@ -1091,7 +1091,6 @@ async function handleAdminCreateKey(req, res) {
 async function handleIrcSend(req, res) {
   const user = requireAuth(req, res);
   if (!user) return;
-  if (!hasClientAccess(user)) return fail(res, 403, 'Нет доступа к IRC (нужна подписка).');
   let body;
   try { body = await readJsonBody(req); } catch (e) { return fail(res, 400, 'Некорректный запрос.'); }
   const message = String(body.message || '').trim();
@@ -1106,7 +1105,6 @@ async function handleIrcSend(req, res) {
 function handleIrcPoll(req, res, url) {
   const user = requireAuth(req, res);
   if (!user) return;
-  if (!hasClientAccess(user)) return fail(res, 403, 'Нет доступа к IRC.');
   const since = Number(url.searchParams.get('since') || '0');
   const rows = db.prepare('SELECT id, login, message, created_at FROM irc_messages WHERE id > ? ORDER BY id ASC LIMIT 50').all(since);
   sendJson(res, 200, { messages: rows.map(r => ({ id: r.id, login: r.login, message: r.message, createdAt: formatDate(r.created_at) })) });
