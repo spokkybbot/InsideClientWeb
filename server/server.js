@@ -1111,6 +1111,29 @@ function handleIrcPoll(req, res, url) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* Alts — IAS альты юзера (для friend list)                               */
+/* ---------------------------------------------------------------------- */
+async function handleAltsSync(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  let body;
+  try { body = await readJsonBody(req); } catch (e) { return fail(res, 400, 'Некорректный запрос.'); }
+  const alts = Array.isArray(body.alts) ? body.alts : [];
+  const clean = [...new Set(alts.map(s => String(s).trim()).filter(s => s.length >= 3 && s.length <= 16 && /^[A-Za-z0-9_]+$/.test(s)))].slice(0, 100);
+  db.prepare('UPDATE users SET alts = ? WHERE id = ?').run(JSON.stringify(clean), user.id);
+  sendJson(res, 200, { ok: true, alts: clean });
+}
+function handleAltsGet(req, res, url) {
+  const login = String(url.searchParams.get('login') || '').trim();
+  if (!login) return fail(res, 400, 'login required');
+  const u = db.prepare('SELECT alts FROM users WHERE login = ? COLLATE NOCASE').get(login);
+  if (!u) return fail(res, 404, 'User not found');
+  let alts = [];
+  try { alts = u.alts ? JSON.parse(u.alts) : []; } catch(e) { alts = []; }
+  sendJson(res, 200, { login, alts });
+}
+
+/* ---------------------------------------------------------------------- */
 /* Admin — HWID management & verify logs                                   */
 /* ---------------------------------------------------------------------- */
 
@@ -1347,6 +1370,8 @@ const API_ROUTES = {
   'POST /api/logout': handleLogout,
   'GET /api/me': handleMe,
   'POST /api/irc/send': handleIrcSend,
+  'GET /api/user/alts': handleAltsGet,
+  'POST /api/client/alts/sync': handleAltsSync,
   'GET /api/irc/messages': handleIrcPoll,
   'POST /api/hwid/reset': handleHwidReset,
   'POST /api/telegram/start-link': handleTelegramStartLink,
