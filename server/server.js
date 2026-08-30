@@ -1086,6 +1086,33 @@ async function handleAdminCreateKey(req, res) {
 }
 
 /* ---------------------------------------------------------------------- */
+/* IRC — простой глобальный чат клиента (@сообщение)                        */
+/* ---------------------------------------------------------------------- */
+async function handleIrcSend(req, res) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  if (!hasClientAccess(user)) return fail(res, 403, 'Нет доступа к IRC (нужна подписка).');
+  let body;
+  try { body = await readJsonBody(req); } catch (e) { return fail(res, 400, 'Некорректный запрос.'); }
+  const message = String(body.message || '').trim();
+  if (!message) return fail(res, 400, 'Пустое сообщение.');
+  if (message.length > 500) return fail(res, 400, 'Сообщение слишком длинное (макс 500).');
+  const now = nowIso();
+  db.prepare('INSERT INTO irc_messages (user_id, login, message, created_at) VALUES (?, ?, ?, ?)').run(user.id, user.login, message, now);
+  const cnt = db.prepare('SELECT COUNT(*) AS c FROM irc_messages').get().c;
+  if (cnt > 200) db.prepare('DELETE FROM irc_messages WHERE id IN (SELECT id FROM irc_messages ORDER BY id ASC LIMIT ?)').run(cnt - 200);
+  sendJson(res, 200, { ok: true });
+}
+function handleIrcPoll(req, res, url) {
+  const user = requireAuth(req, res);
+  if (!user) return;
+  if (!hasClientAccess(user)) return fail(res, 403, 'Нет доступа к IRC.');
+  const since = Number(url.searchParams.get('since') || '0');
+  const rows = db.prepare('SELECT id, login, message, created_at FROM irc_messages WHERE id > ? ORDER BY id ASC LIMIT 50').all(since);
+  sendJson(res, 200, { messages: rows.map(r => ({ id: r.id, login: r.login, message: r.message, createdAt: formatDate(r.created_at) })) });
+}
+
+/* ---------------------------------------------------------------------- */
 /* Admin — HWID management & verify logs                                   */
 /* ---------------------------------------------------------------------- */
 
@@ -1321,6 +1348,8 @@ const API_ROUTES = {
   'POST /api/login': handleLogin,
   'POST /api/logout': handleLogout,
   'GET /api/me': handleMe,
+  'POST /api/irc/send': handleIrcSend,
+  'GET /api/irc/messages': handleIrcPoll,
   'POST /api/hwid/reset': handleHwidReset,
   'POST /api/telegram/start-link': handleTelegramStartLink,
   'POST /api/telegram/unlink': handleTelegramUnlink,

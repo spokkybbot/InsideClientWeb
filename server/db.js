@@ -323,6 +323,17 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_friends_user    ON friends(user_id);
   CREATE INDEX IF NOT EXISTS idx_friends_friend  ON friends(friend_id);
+
+  CREATE TABLE IF NOT EXISTS irc_messages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL,
+    login      TEXT NOT NULL,
+    message    TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_irc_created ON irc_messages(created_at);
+  CREATE INDEX IF NOT EXISTS idx_irc_user ON irc_messages(user_id);
 `);
 
 module.exports = db;
