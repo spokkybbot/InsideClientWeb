@@ -130,6 +130,7 @@ addColumnIfMissing('users', 'alts TEXT');
 
 // users: профиль — доступ к боту (выдаётся отдельным типом ключа)
 addColumnIfMissing('users', 'bot_access INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('users', 'privacy TEXT');
 
 // activation_keys: richer key system (duration, uses, reward type)
 addColumnIfMissing('activation_keys', "reward_type TEXT NOT NULL DEFAULT 'subscription'");
@@ -334,6 +335,21 @@ db.exec(`
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
   CREATE INDEX IF NOT EXISTS idx_irc_created ON irc_messages(created_at);
+  CREATE INDEX IF NOT EXISTS idx_irc_user ON irc_messages(user_id);
+
+  CREATE TABLE IF NOT EXISTS friend_requests (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    from_id    INTEGER NOT NULL,
+    to_id      INTEGER NOT NULL,
+    status     TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY(from_id) REFERENCES users(id),
+    FOREIGN KEY(to_id) REFERENCES users(id),
+    UNIQUE(from_id, to_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_requests_to ON friend_requests(to_id, status);
+  CREATE INDEX IF NOT EXISTS idx_requests_from ON friend_requests(from_id, status);
   CREATE INDEX IF NOT EXISTS idx_irc_user ON irc_messages(user_id);
 `);
 

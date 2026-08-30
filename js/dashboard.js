@@ -103,6 +103,8 @@ function icDashActionBtn(kind, u){
       return `<button type="button" class="btn btn-outline" id="dash-activate">${ICONS.key}<span data-i18n="dash.action.activate"></span></button>`;
     case 'configs':
       return u.hasClient ? `<button type="button" class="btn btn-outline" id="dash-configs-page">${ICONS.cloud}<span data-i18n="dash.action.configs"></span></button>` : '';
+    case 'privacy':
+      return `<a href="privacy.html" class="btn btn-outline" id="dash-privacy">${ICONS.lock}<span>Конфиденциальность</span></a>`;
     case 'download':
       return u.hasClient ? `<button type="button" class="btn btn-white" id="dash-download">${ICONS.download}<span data-i18n="dash.action.download"></span></button>` : '';
     case 'password':
@@ -125,7 +127,7 @@ function icDashCurrentHtml(u, ctx){
     <div class="dash-layout">
       <aside class="dash-aside reveal">
         <div class="dash-profile">${icDashProfileBlockHtml(u, false)}</div>
-        <div class="dash-actions">${icDashActionsHtml(u, ['purchases', 'activate', 'configs', 'download', 'password', 'logout'])}</div>
+        <div class="dash-actions">${icDashActionsHtml(u, ['purchases', 'activate', 'configs', 'privacy', 'download', 'password', 'logout'])}</div>
       </aside>
       <div class="dash-main">
         <div class="dash-grid">

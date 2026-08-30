@@ -17,6 +17,12 @@ const {
   handleFriendsList,
   handleFriendsAdd,
   handleFriendsRemove,
+  handleUserSearch,
+  handleFriendRequests,
+  handleFriendAccept,
+  handleFriendDecline,
+  handlePrivacyGet,
+  handlePrivacySet,
 } = require('./friends');
 
 const ROOT = path.join(__dirname, '..');
@@ -1476,6 +1482,54 @@ const server = http.createServer((req, res) => {
   if (url.pathname === '/api/client/friends/remove') {
     return Promise.resolve(handleFriendsRemove(req, res)).catch((err) => {
       console.error('[friends]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/users/search' || url.pathname === '/api/friends/search') {
+    return Promise.resolve(handleUserSearch(req, res)).catch((err) => {
+      console.error('[friends-search]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/friends/requests') {
+    return Promise.resolve(handleFriendRequests(req, res)).catch((err) => {
+      console.error('[friends-requests]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/friends/request' || url.pathname === '/api/client/friends/add') {
+    // alias for add (now request)
+    return Promise.resolve(handleFriendsAdd(req, res)).catch((err) => {
+      console.error('[friends-add]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/friends/accept') {
+    return Promise.resolve(handleFriendAccept(req, res)).catch((err) => {
+      console.error('[friends-accept]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/friends/decline') {
+    return Promise.resolve(handleFriendDecline(req, res)).catch((err) => {
+      console.error('[friends-decline]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+  }
+  if (url.pathname === '/api/privacy' || url.pathname === '/api/client/privacy') {
+    if (req.method === 'GET') return Promise.resolve(handlePrivacyGet(req, res)).catch((err) => {
+      console.error('[privacy-get]', err);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
+    });
+    else return Promise.resolve(handlePrivacySet(req, res)).catch((err) => {
+      console.error('[privacy-set]', err);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ status: 'reject', message: 'Внутренняя ошибка сервера.' }));
     });

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Конфиденциальность — Inside Client</title>
+<script>(function(){try{var t=localStorage.getItem('ic_theme')||'mono';document.documentElement.setAttribute('data-theme', t);if(t==='custom'){var raw=localStorage.getItem('ic_custom_palette');if(raw){var vars=JSON.parse(raw);for(var k in vars){document.documentElement.style.setProperty(k, vars[k]);}}}}catch(e){}})();</script>
+<link rel="stylesheet" href="css/style.css">
+<style>
+  .privacy-grid { display:grid; gap:14px; margin-top:18px; max-width:520px; }
+  .privacy-item { display:flex; justify-content:space-between; align-items:center; background:var(--card-bg,#16141f); border:1px solid var(--border,#2a2740); border-radius:12px; padding:14px 16px; }
+  .privacy-item span { font-size:14px; }
+  .privacy-item small { color:var(--text-muted,#9a93b2); font-size:12px; display:block; margin-top:2px; }
+  .switch { position:relative; width:44px; height:24px; background:var(--border,#2a2740); border-radius:999px; cursor:pointer; transition:.2s; }
+  .switch.on { background:var(--accent,#9b6bff); }
+  .switch::after { content:''; position:absolute; top:2px; left:2px; width:20px; height:20px; background:#fff; border-radius:50%; transition:.2s; }
+  .switch.on::after { transform:translateX(20px); }
+</style>
+</head>
+<body data-page="privacy">
+  <div id="cursor-glow"></div>
+  <header class="site-header" id="app-header"></header>
+  <main>
+    <div class="dash-shell">
+      <div class="dash-head reveal">
+        <span class="eyebrow"><span class="dot"></span>Аккаунт</span>
+        <h1>Конфиденциальность</h1>
+        <p class="dash-sub">Выбери, что видят друзья: сервер, онлайн, анархию, координаты. Выключенное — скроется в HUD и на сайте.</p>
+      </div>
+      <div class="privacy-grid reveal" id="privacy-grid">
+        <div class="privacy-item"><div><span>Показывать онлайн</span><small>Видят ли друзья что ты в сети (клиент запущен)</small></div><div class="switch" data-key="showOnline"></div></div>
+        <div class="privacy-item"><div><span>Показывать сервер</span><small>spookytime / funtime и т.д.</small></div><div class="switch" data-key="showServer"></div></div>
+        <div class="privacy-item"><div><span>Показывать анархию</span><small>Номер анархии (spookytime)</small></div><div class="switch" data-key="showAnarchy"></div></div>
+        <div class="privacy-item"><div><span>Показывать координаты</span><small>x, y, z</small></div><div class="switch" data-key="showCoords"></div></div>
+      </div>
+      <p id="privacy-msg" style="margin-top:14px;font-size:13px;color:var(--accent)"></p>
+    </div>
+  </main>
+  <footer class="site-footer" id="app-footer"></footer>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script src="js/icons.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/cursor.js"></script>
+  <script src="js/main.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/privacy.js"></script>
+</body>
+</html>

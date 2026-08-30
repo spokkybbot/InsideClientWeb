@@ -130,6 +130,7 @@ addColumnIfMissing('users', 'alts TEXT');
 
 // users: профиль — доступ к боту (выдаётся отдельным типом ключа)
 addColumnIfMissing('users', 'bot_access INTEGER NOT NULL DEFAULT 0');
+addColumnIfMissing('users', 'privacy TEXT');
 
 // activation_keys: richer key system (duration, uses, reward type)
 addColumnIfMissing('activation_keys', "reward_type TEXT NOT NULL DEFAULT 'subscription'");

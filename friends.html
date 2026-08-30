@@ -11,11 +11,13 @@
   .friends-add .input { flex:1; min-width:220px; }
   .friend-msg { font-size:13px; color:var(--accent, #9b6bff); }
   .friend-msg.err { color:#e74c3c; }
-  .friends-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; margin-top:18px; }
-  .friend-card { background:var(--card-bg,#16141f); border:1px solid var(--border,#2a2740); border-radius:14px; padding:14px 16px; }
+  .friends-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; margin-top:18px; }
+  .friend-card { background:var(--card-bg,#16141f); border:1px solid var(--border,#2a2740); border-radius:14px; padding:14px 16px; transition:transform .15s; }
+  .friend-card:hover { transform:translateY(-2px); border-color:var(--accent,#9b6bff); }
   .friend-card.hidden-friend { opacity:.65; }
   .friend-card .fc-top { display:flex; justify-content:space-between; align-items:center; gap:8px; }
   .friend-card .fc-login { font-weight:600; font-size:15px; word-break:break-all; }
+  .friend-card .fc-uid { font-size:11px; color:var(--text-muted,#9a93b2); }
   .friend-card .fc-nick { color:var(--text-muted,#9a93b2); font-size:13px; margin-top:2px; }
   .friend-card .fc-row { font-size:13px; margin-top:6px; color:var(--text,#e8e6f0); }
   .friend-card .fc-row b { color:var(--text-muted,#9a93b2); font-weight:500; }
@@ -23,8 +25,13 @@
   .badge-on { background:rgba(46,204,113,.16); color:#2ecc71; }
   .badge-off { background:rgba(231,76,60,.16); color:#e74c3c; }
   .badge-hide { background:rgba(155,107,255,.16); color:#9b6bff; }
-  .friend-card .fc-del { margin-top:10px; }
+  .friend-card .fc-del { margin-top:10px; display:flex; gap:8px; }
   .friend-empty { color:var(--text-muted,#9a93b2); margin-top:18px; }
+  .admin-search-row { display:flex; gap:8px; margin:18px 0; align-items:center; flex-wrap:wrap; }
+  .admin-search-type { max-width:180px; }
+  .admin-search-input { flex:1; min-width:220px; }
+  .requests-section { margin-top:24px; }
+  .requests-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:14px; margin-top:12px; }
 </style>
 </head>
 <body data-page="friends">
@@ -37,18 +44,36 @@
       <div class="dash-head reveal">
         <span class="eyebrow"><span class="dot"></span>Аккаунт</span>
         <h1>Друзья</h1>
-        <p class="dash-sub">Добавляй друзей по логину сайта — и видь их координаты, анархию, броню и ХП прямо в клиенте (виджет «Друзья»).</p>
+        <p class="dash-sub">Находи друзей по логину, кидай заявки и видь их статус в реальном времени. Приватность — в личном кабинете.</p>
+      </div>
+
+      <div class="admin-search-row reveal" id="friends-search-row">
+        <select id="friend-search-type" class="dash-item-input admin-search-type">
+          <option value="login">Логин</option>
+          <option value="uid">UID</option>
+          <option value="nick">Ник</option>
+        </select>
+        <input type="text" id="friend-search-input" class="dash-item-input admin-search-input" placeholder="Поиск по друзьям — введите логин, ник или UID" autocomplete="off">
+        <button type="button" class="btn btn-primary" id="friend-search-btn">Найти</button>
+        <button type="button" class="btn btn-outline" id="friend-search-clear">Сброс</button>
       </div>
 
       <div class="friends-add reveal">
-        <input type="text" id="friend-login" class="input" placeholder="Логин друга на сайте" autocomplete="off">
-        <button type="button" class="btn btn-primary" id="friend-add-btn">Добавить</button>
+        <input type="text" id="friend-login" class="input" placeholder="Логин друга на сайте для заявки" autocomplete="off">
+        <button type="button" class="btn btn-primary" id="friend-add-btn">Кинуть заявку</button>
         <span id="friend-add-msg" class="friend-msg"></span>
+      </div>
+
+      <div class="requests-section reveal" id="requests-section">
+        <h3 style="margin-top:18px;">Входящие заявки</h3>
+        <div class="requests-grid" id="requests-incoming"></div>
+        <h3 style="margin-top:18px;">Исходящие заявки</h3>
+        <div class="requests-grid" id="requests-outgoing"></div>
       </div>
 
       <div class="friends-container">
         <div class="friends-grid" id="friends-list"></div>
-        <p class="friend-empty" id="friends-empty" style="display:none;">Пока нет друзей. Добавь первого по логину выше.</p>
+        <p class="friend-empty" id="friends-empty" style="display:none;">Пока нет друзей. Найди по поиску выше и кинь заявку.</p>
       </div>
     </div>
   </main>
