@@ -1363,7 +1363,16 @@ async function handleLauncherAuth(req, res) {
     return sendJson(res, 403, { status: 'reject', error: 'hwid_mismatch' });
   }
 
-  sendJson(res, 200, { status: 'ok', login: user.login });
+  const token = newToken();
+  const expiresAt = new Date(Date.now() + SESSION_SHORT_MS).toISOString();
+  db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(
+    token,
+    user.id,
+    nowIso(),
+    expiresAt
+  );
+
+  sendJson(res, 200, { status: 'ok', token, user: userToDto(user) });
 }
 
 /* ---------------------------------------------------------------------- */
