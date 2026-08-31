@@ -1,6 +1,7 @@
 'use strict';
 
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -1361,6 +1362,20 @@ async function handleLauncherAuth(req, res) {
   sendJson(res, 200, { status: 'ok', login: user.login });
 }
 
+function handleSchedulesOverlay(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') { res.writeHead(204); return res.end(); }
+  https.get('https://round-field-38f9.andrejmartirosan691.workers.dev/overlay.json', { headers: { 'User-Agent': 'InsideClientProxy/1.0' } }, (upRes) => {
+    let data = '';
+    upRes.on('data', (c) => data += c);
+    upRes.on('end', () => {
+      res.writeHead(upRes.statusCode || 200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end(data);
+    });
+  }).on('error', (e) => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'upstream failed' })); });
+}
+
 /* ---------------------------------------------------------------------- */
 /* Router                                                                 */
 /* ---------------------------------------------------------------------- */
@@ -1402,6 +1417,10 @@ const API_ROUTES = {
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const key = `${req.method} ${url.pathname}`;
+
+  if (url.pathname === '/overlay.json' || url.pathname === '/api/schedules/overlay.json' || url.pathname === '/api/schedules') {
+    return handleSchedulesOverlay(req, res);
+  }
 
   // /api/verify и /api/status — отдельные модули (rate-limit + CORS)
   if (url.pathname === '/api/verify') {
