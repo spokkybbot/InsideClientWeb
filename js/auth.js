@@ -39,12 +39,24 @@ function icWirePasswordToggle(inputEl, btnEl){
     submitBtn.disabled = true;
 
     try {
-      await icApiPost('/api/login', {
+      const params = new URLSearchParams(window.location.search);
+      const launcherLogin = params.get('launcher') === '1';
+      const callback = params.get('callback');
+      const state = params.get('state');
+      const data = await icApiPost(launcherLogin ? '/api/launcher/web-login' : '/api/login', {
         login: idInput.value.trim(),
         password: passInput.value,
         remember: !!(rememberInput && rememberInput.checked),
       });
-      window.location.href = 'dashboard.html';
+      if (launcherLogin && callback && state && data.code) {
+        const callbackUrl = new URL(callback);
+        if (callbackUrl.hostname !== '127.0.0.1' && callbackUrl.hostname !== 'localhost') throw new Error('Некорректный callback лаунчера.');
+        callbackUrl.searchParams.set('code', data.code);
+        callbackUrl.searchParams.set('state', state);
+        window.location.href = callbackUrl.toString();
+      } else {
+        window.location.href = 'dashboard.html';
+      }
     } catch (err) {
       errorEl.textContent = err.message;
       submitBtn.disabled = false;

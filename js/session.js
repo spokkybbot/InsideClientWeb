@@ -34,7 +34,8 @@
         loginBtn.parentElement.insertBefore(adminBtn, loginBtn);
       }
     }
-    if (page === 'login' || page === 'register') {
+    const isLauncherLogin = page === 'login' && new URLSearchParams(window.location.search).get('launcher') === '1';
+    if ((page === 'login' || page === 'register') && !isLauncherLogin) {
       window.location.href = 'dashboard.html';
       return;
     }

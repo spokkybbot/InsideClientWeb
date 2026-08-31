@@ -57,6 +57,14 @@ const ADMIN_LOGINS = (process.env.ADMIN_LOGINS || '')
   .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
+const launcherLoginCodes = new Map();
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, entry] of launcherLoginCodes) {
+    if (entry.expiresAt < now) launcherLoginCodes.delete(code);
+  }
+}, 60 * 1000).unref();
+
 function maybePromoteAdmin(user) {
   if (!user.is_admin && ADMIN_LOGINS.includes(user.login.toLowerCase())) {
     db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(user.id);
@@ -1375,6 +1383,47 @@ async function handleLauncherAuth(req, res) {
   sendJson(res, 200, { status: 'ok', token, user: userToDto(user) });
 }
 
+async function handleLauncherWebLogin(req, res) {
+  let body;
+  try { body = await readJsonBody(req); } catch (e) {
+    return fail(res, 400, 'Некорректный запрос.');
+  }
+  const login = String(body.login || '').trim();
+  const password = String(body.password || '');
+  const user = db.prepare('SELECT * FROM users WHERE login = ? COLLATE NOCASE').get(login);
+  if (!user || !verifyPassword(password, user.password_hash)) return fail(res, 401, 'Неверный логин или пароль.');
+  if (user.banned) return fail(res, 403, 'Аккаунт заблокирован.');
+  if (!hasClientAccess(user)) return fail(res, 403, 'Нет активной подписки.');
+
+  const code = crypto.randomBytes(32).toString('hex');
+  launcherLoginCodes.set(code, { userId: user.id, expiresAt: Date.now() + 2 * 60 * 1000 });
+  sendJson(res, 200, { code });
+}
+
+async function handleLauncherExchange(req, res) {
+  let body;
+  try { body = await readJsonBody(req); } catch (e) {
+    return sendJson(res, 400, { status: 'reject', error: 'bad_request' });
+  }
+  const code = String(body.code || '');
+  const hwid = String(body.hwid || '').trim().toLowerCase();
+  const entry = launcherLoginCodes.get(code);
+  launcherLoginCodes.delete(code);
+  if (!entry || entry.expiresAt < Date.now() || !HWID_RE.test(hwid)) {
+    return sendJson(res, 400, { status: 'reject', error: 'invalid_code' });
+  }
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(entry.userId);
+  if (!user || user.banned || !hasClientAccess(user)) return sendJson(res, 403, { status: 'reject', error: 'access_denied' });
+  if (user.hwid && user.hwid.toLowerCase() !== hwid) return sendJson(res, 403, { status: 'reject', error: 'hwid_mismatch' });
+  if (!user.hwid) db.prepare('UPDATE users SET hwid = ? WHERE id = ?').run(hwid, user.id);
+
+  const token = newToken();
+  const expiresAt = new Date(Date.now() + SESSION_SHORT_MS).toISOString();
+  db.prepare('INSERT INTO sessions (token, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)').run(token, user.id, nowIso(), expiresAt);
+  sendJson(res, 200, { status: 'ok', token, user: userToDto(db.prepare('SELECT * FROM users WHERE id = ?').get(user.id)) });
+}
+
 /* ---------------------------------------------------------------------- */
 /* Router                                                                 */
 /* ---------------------------------------------------------------------- */
@@ -1401,6 +1450,8 @@ const API_ROUTES = {
   'POST /api/configs/delete': handleConfigsDelete,
   'POST /api/purchases/buy': handleBuy,
   'POST /api/key/activate': handleKeyActivate,
+  'POST /api/launcher/web-login': handleLauncherWebLogin,
+  'POST /api/client/launcher/exchange': handleLauncherExchange,
   'GET /api/admin/user': handleAdminUserLookup,
   'POST /api/admin/ban': handleAdminBan,
   'POST /api/admin/subscription/revoke': handleAdminRevokeSubscription,
