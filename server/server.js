@@ -1103,10 +1103,10 @@ async function handleAdminCreateKey(req, res) {
 /* IRC — простой глобальный чат клиента (@сообщение)                        */
 /* ---------------------------------------------------------------------- */
 async function handleIrcSend(req, res) {
-  const user = requireAuth(req, res);
-  if (!user) return;
   let body;
   try { body = await readJsonBody(req); } catch (e) { return fail(res, 400, 'Некорректный запрос.'); }
+  const user = getSessionUser(req) || getLicensedHwidUser(body.hwid);
+  if (!user) return fail(res, 401, 'Требуется авторизация.');
   const message = String(body.message || '').trim();
   if (!message) return fail(res, 400, 'Пустое сообщение.');
   if (message.length > 500) return fail(res, 400, 'Сообщение слишком длинное (макс 500).');
@@ -1117,8 +1117,8 @@ async function handleIrcSend(req, res) {
   sendJson(res, 200, { ok: true, id: info.lastInsertRowid });
 }
 function handleIrcPoll(req, res, url) {
-  const user = requireAuth(req, res);
-  if (!user) return;
+  const user = getSessionUser(req) || getLicensedHwidUser(url.searchParams.get('hwid'));
+  if (!user) return fail(res, 401, 'Требуется авторизация.');
   const since = Number(url.searchParams.get('since') || '0');
   const rows = db.prepare('SELECT id, login, message, created_at FROM irc_messages WHERE id > ? ORDER BY id ASC LIMIT 50').all(since);
   sendJson(res, 200, { messages: rows.map(r => ({ id: r.id, login: r.login, message: r.message, createdAt: formatDate(r.created_at) })) });
@@ -1128,10 +1128,10 @@ function handleIrcPoll(req, res, url) {
 /* Alts — IAS альты юзера (для friend list)                               */
 /* ---------------------------------------------------------------------- */
 async function handleAltsSync(req, res) {
-  const user = requireAuth(req, res);
-  if (!user) return;
   let body;
   try { body = await readJsonBody(req); } catch (e) { return fail(res, 400, 'Некорректный запрос.'); }
+  const user = getSessionUser(req) || getLicensedHwidUser(body.hwid);
+  if (!user) return fail(res, 401, 'Требуется авторизация.');
   const alts = Array.isArray(body.alts) ? body.alts : [];
   const clean = [...new Set(alts.map(s => String(s).trim()).filter(s => s.length >= 3 && s.length <= 16 && /^[A-Za-z0-9_]+$/.test(s)))].slice(0, 100);
   db.prepare('UPDATE users SET alts = ? WHERE id = ?').run(JSON.stringify(clean), user.id);
@@ -1381,6 +1381,14 @@ async function handleLauncherAuth(req, res) {
   );
 
   sendJson(res, 200, { status: 'ok', token, user: userToDto(user) });
+}
+
+function getLicensedHwidUser(rawHwid) {
+  const hwid = String(rawHwid || '').trim().toLowerCase();
+  if (!HWID_RE.test(hwid)) return null;
+  const user = db.prepare('SELECT * FROM users WHERE hwid = ? COLLATE NOCASE').get(hwid);
+  if (!user || user.banned || !isSubscriptionActive(user)) return null;
+  return user;
 }
 
 async function handleLauncherWebLogin(req, res) {
